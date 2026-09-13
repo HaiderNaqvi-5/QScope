@@ -22,3 +22,13 @@ def test_update_settings():
     assert response.status_code == 200
     data = response.json()
     assert data["debug"] is True
+
+
+def test_ai_status_does_not_expose_credentials():
+    response = client.get("/api/settings/ai")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider"] == "Groq"
+    assert data["status"] in {"READY", "MISSING_KEY", "DISABLED"}
+    assert "api_key" not in data
+    assert data["source_upload_default"] is False

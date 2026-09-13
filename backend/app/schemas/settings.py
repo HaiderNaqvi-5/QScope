@@ -20,3 +20,13 @@ class SettingsResponse(BaseModel):
     backend_host: str
     backend_port: int
     data_dir: str
+
+
+class AIStatusResponse(BaseModel):
+    provider: str
+    status: str
+    model: str
+    max_tokens: int
+    timeout_seconds: int
+    source_upload_default: bool
+    note: str

@@ -1,7 +1,7 @@
 """Settings API endpoints."""
 from fastapi import APIRouter, HTTPException
 from app.core.config import settings as app_settings
-from app.schemas.settings import SettingsResponse, SettingsUpdate
+from app.schemas.settings import AIStatusResponse, SettingsResponse, SettingsUpdate
 
 router = APIRouter()
 
@@ -34,3 +34,22 @@ async def update_settings(update: SettingsUpdate) -> SettingsResponse:
     
     return await get_settings()
 
+
+@router.get("/settings/ai", response_model=AIStatusResponse)
+async def get_ai_status() -> AIStatusResponse:
+    """Report local AI readiness without exposing credentials or making a network call."""
+    if not app_settings.ENABLE_LLM_FEATURES:
+        status = "DISABLED"
+    elif not app_settings.GROQ_API_KEY:
+        status = "MISSING_KEY"
+    else:
+        status = "READY"
+    return AIStatusResponse(
+        provider="Groq",
+        status=status,
+        model=app_settings.GROQ_MODEL,
+        max_tokens=app_settings.GROQ_MAX_TOKENS,
+        timeout_seconds=app_settings.GROQ_TIMEOUT,
+        source_upload_default=False,
+        note="AI actions are opt-in; only bounded redacted context may be sent to Groq.",
+    )

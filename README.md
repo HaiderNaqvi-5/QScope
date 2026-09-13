@@ -98,8 +98,9 @@ inventory, deterministic CycloneDX SBOM export, structured adapters, findings, b
 scoring, accessibility/performance readiness and evidence normalization, API test evidence
 normalization, history, and JSON/Markdown/HTML
 exports, including DOCX, plus approval-gated ZAP/k6/JMeter readiness for detected local
-artifacts, local advisory code-hygiene heuristics, and optional PDF export when the local
-Playwright Chromium renderer is installed. Browser execution expansion and AI review remain planned. See
+artifacts, local advisory code-hygiene heuristics, optional PDF export when the local
+Playwright Chromium renderer is installed, and privacy-safe Groq readiness status. AI actions
+remain opt-in and bounded; browser execution expansion and AI review workflows remain planned. See
 `Doc & prd/implementation.md` for the authoritative milestone status.
 
 ## License

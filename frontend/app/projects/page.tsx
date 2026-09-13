@@ -31,10 +31,16 @@ export default function ProjectsPage() {
   const [reportHistory, setReportHistory] = useState<ReportHistory[]>([]);
   const [runtimePort, setRuntimePort] = useState('');
   const [runtimeHealth, setRuntimeHealth] = useState<RuntimeHealth | null>(null);
+  const [aiStatus, setAiStatus] = useState('');
   const [error, setError] = useState('');
 
   const loadProjects = () => fetch(`${API}/projects`).then((res) => res.json()).then(setProjects).catch(() => setError('Backend is offline.'));
-  useEffect(() => { loadProjects(); }, []);
+  useEffect(() => {
+    loadProjects();
+    fetch(`${API}/settings/ai`).then((res) => res.ok ? res.json() : null).then((body) => {
+      if (body) setAiStatus(`${body.provider}: ${body.status}`);
+    }).catch(() => undefined);
+  }, []);
 
   async function discover(event: FormEvent) {
     event.preventDefault();
@@ -126,6 +132,7 @@ export default function ProjectsPage() {
           <button className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700">Discover</button>
         </form>
         {error && <p className="rounded-lg bg-red-50 p-4 text-red-700 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
+        {aiStatus && <p className="text-xs text-slate-500">AI enrichment: {aiStatus} · deterministic scans remain local</p>}
         <section className="grid gap-4 md:grid-cols-2">
           {projects.map((project) => (
             <article key={project.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
