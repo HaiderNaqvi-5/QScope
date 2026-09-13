@@ -47,3 +47,20 @@ def test_lighthouse_scores_are_normalized():
     })
     assert findings[0]["title"] == "Lighthouse: performance"
     assert findings[0]["severity"] == "HIGH"
+
+
+def test_newman_failed_assertion_includes_safe_request_evidence():
+    findings = normalize_tool_output("scan", {
+        "tool": "newman", "stage": "API_TESTING", "output": '{"run": {"executions": [{"request": {"method": "POST", "url": {"raw": "http://127.0.0.1:8000/login"}}, "response": {"code": 500, "responseTime": 42}, "assertions": [{"assertion": "status", "error": {"message": "expected 200"}}]}]}}'
+    })
+    assert findings[0]["title"] == "Newman: POST http://127.0.0.1:8000/login"
+    assert "status 500" in findings[0]["message"]
+    assert "password" not in findings[0]["message"].lower()
+
+
+def test_schemathesis_failed_case_is_normalized():
+    findings = normalize_tool_output("scan", {
+        "tool": "schemathesis", "stage": "API_TESTING", "output": '{"results": [{"method": "GET", "path": "/users", "status": "failure", "response": {"status_code": 500}, "message": "server error"}]}'
+    })
+    assert findings[0]["title"] == "Schemathesis: GET /users"
+    assert "status 500" in findings[0]["message"]

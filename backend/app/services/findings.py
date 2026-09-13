@@ -56,17 +56,26 @@ def score_findings(findings: list[dict[str, Any]]) -> int:
 def normalize_tool_output(scan_id: str, result: dict[str, Any]) -> list[dict[str, Any]]:
     """Normalize structured tool output without persisting secret content."""
     tool = result.get("tool")
-    if tool not in {"semgrep", "gitleaks", "axe", "lighthouse"}:
+    if tool not in {"semgrep", "gitleaks", "axe", "lighthouse", "newman", "schemathesis"}:
         finding = normalize_result(scan_id, result)
         return [finding] if finding else []
     try:
         payload = json.loads(str(result.get("output", "")) or "[]")
     except json.JSONDecodeError:
-        return []
+        finding = normalize_result(scan_id, result)
+        return [finding] if finding else []
     if tool == "axe":
-        return _normalize_axe(scan_id, result, payload)
+        findings = _normalize_axe(scan_id, result, payload)
+        return findings or ([normalize_result(scan_id, result)] if normalize_result(scan_id, result) else [])
     if tool == "lighthouse":
-        return _normalize_lighthouse(scan_id, result, payload)
+        findings = _normalize_lighthouse(scan_id, result, payload)
+        return findings or ([normalize_result(scan_id, result)] if normalize_result(scan_id, result) else [])
+    if tool == "newman":
+        findings = _normalize_newman(scan_id, result, payload)
+        return findings or ([normalize_result(scan_id, result)] if normalize_result(scan_id, result) else [])
+    if tool == "schemathesis":
+        findings = _normalize_schemathesis(scan_id, result, payload)
+        return findings or ([normalize_result(scan_id, result)] if normalize_result(scan_id, result) else [])
     records = payload.get("results", []) if isinstance(payload, dict) else payload
     normalized = []
     for record in records if isinstance(records, list) else []:
@@ -142,6 +151,60 @@ def _normalize_lighthouse(scan_id: str, result: dict[str, Any], payload: Any) ->
                 scan_id, result, f"audit|{audit_id}", f"Lighthouse audit: {audit_id}",
                 "MEDIUM", str(audit.get("description") or audit.get("title") or "Performance audit failed"),
             ))
+    return findings
+
+
+def _normalize_newman(scan_id: str, result: dict[str, Any], payload: Any) -> list[dict[str, Any]]:
+    findings = []
+    executions = payload.get("run", {}).get("executions", []) if isinstance(payload, dict) else []
+    for execution in executions if isinstance(executions, list) else []:
+        assertions = execution.get("assertions", [])
+        failed = [item for item in assertions if isinstance(item, dict) and item.get("error")]
+        response = execution.get("response") or {}
+        request = execution.get("request") or {}
+        url = request.get("url")
+        if isinstance(url, dict):
+            url = url.get("raw") or "/".join(str(part) for part in url.get("path", []))
+        method = str(request.get("method") or "REQUEST").upper()
+        status = response.get("code") or response.get("status") or "no response"
+        latency = response.get("responseTime")
+        if not failed and response:
+            continue
+        assertion_text = "; ".join(
+            str(item.get("error", {}).get("message", "assertion failed"))[:300]
+            for item in failed
+        ) or "No response was received."
+        latency_text = f"; latency {latency} ms" if isinstance(latency, (int, float)) else ""
+        findings.append(_finding(
+            scan_id, result, f"{method}|{url}|{status}|{assertion_text}",
+            f"Newman: {method} {url or 'unknown endpoint'}", "HIGH",
+            f"Observed status {status}{latency_text}. {assertion_text}. Request payload and secrets were omitted.",
+        ))
+    return findings
+
+
+def _normalize_schemathesis(scan_id: str, result: dict[str, Any], payload: Any) -> list[dict[str, Any]]:
+    findings = []
+    records = payload.get("results", payload.get("cases", [])) if isinstance(payload, dict) else payload
+    for case in records if isinstance(records, list) else []:
+        if not isinstance(case, dict):
+            continue
+        status = str(case.get("status") or case.get("outcome") or "").lower()
+        if status in {"success", "passed", "ok"}:
+            continue
+        method = str(case.get("method") or case.get("verb") or "REQUEST").upper()
+        endpoint = case.get("path") or case.get("url") or "unknown endpoint"
+        response = case.get("response") or {}
+        code = response.get("status_code") if isinstance(response, dict) else None
+        latency = case.get("elapsed") or case.get("response_time")
+        latency_text = f"; latency {latency} ms" if isinstance(latency, (int, float)) else ""
+        detail = str(case.get("message") or case.get("exception") or case.get("checks") or "Property or negative test failed")[:700]
+        code_text = f" status {code}" if code is not None else ""
+        findings.append(_finding(
+            scan_id, result, f"{method}|{endpoint}|{status}|{detail}",
+            f"Schemathesis: {method} {endpoint}", "HIGH",
+            f"API case failed with{code_text}{latency_text}. {detail}. Payload values were omitted or redacted.",
+        ))
     return findings
 
 
