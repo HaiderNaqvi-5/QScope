@@ -26,7 +26,11 @@ def test_report_exports_json_and_markdown(tmp_path):
         docx = client.get(f"/api/scans/{scan['id']}/report/export?format=docx")
         assert docx.status_code == 200
         assert docx.content.startswith(b"PK")
+        pdf = client.get(f"/api/scans/{scan['id']}/report/export?format=pdf")
+        assert pdf.status_code in {200, 503}
+        if pdf.status_code == 200:
+            assert pdf.content.startswith(b"%PDF")
         history = client.get(f"/api/projects/{project['id']}/reports")
         assert history.status_code == 200
-        assert {item["format"] for item in history.json()} >= {"json", "markdown", "html", "docx"}
+        assert {item["format"] for item in history.json()} >= {"json", "markdown", "html", "docx", "pdf"}
         assert client.get(f"/api/projects/{project['id']}/scans").status_code == 200

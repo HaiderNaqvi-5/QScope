@@ -181,7 +181,7 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
 @router.get("/scans/{scan_id}/report/export")
 async def export_scan_report(
     scan_id: str,
-    format: str = Query("json", pattern="^(json|markdown|html|docx)$"),
+    format: str = Query("json", pattern="^(json|markdown|html|docx|pdf)$"),
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     scan = await db.get(ScanSession, scan_id)
@@ -247,6 +247,50 @@ th{{background:#eef2f7}}</style></head><body>
         document.save(buffer)
         return Response(buffer.getvalue(), media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={
             "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.docx"',
+        })
+    if format == "pdf":
+        from html import escape
+
+        finding_rows = "".join(
+            f"<tr><td>{escape(finding.severity or '')}</td>"
+            f"<td>{escape(finding.status)}</td><td>{escape(finding.title)}</td>"
+            f"<td>{escape(finding.message)}</td></tr>"
+            for finding in report.findings
+        ) or "<tr><td colspan='4'>No normalized findings.</td></tr>"
+        html_body = f"""<!doctype html><html><head><meta charset="utf-8">
+<style>body{{font:12px Arial,sans-serif;margin:32px;color:#172033}}
+h1{{font-size:24px}}table{{border-collapse:collapse;width:100%}}
+th,td{{border:1px solid #ccd3df;padding:6px;text-align:left;vertical-align:top}}
+th{{background:#eef2f7}}</style></head><body>
+<h1>QSScope Scan Report</h1><p>Scan: <code>{escape(report.scan_id)}</code></p>
+<p>Status: <strong>{escape(report.status)}</strong> · Score: <strong>{report.score}/100</strong></p>
+<p>New: {report.new_findings} · Existing: {report.existing_findings} · Resolved: {report.resolved_findings}</p>
+<h2>Findings</h2><table><thead><tr><th>Severity</th><th>Status</th><th>Title</th><th>Message</th></tr></thead>
+<tbody>{finding_rows}</tbody></table></body></html>"""
+        try:
+            from playwright.async_api import Error as PlaywrightError
+            from playwright.async_api import async_playwright
+        except ImportError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"PDF renderer unavailable; install Playwright Chromium browsers: {exc.__class__.__name__}",
+            ) from exc
+        try:
+            async with async_playwright() as playwright:
+                browser = await playwright.chromium.launch()
+                try:
+                    page = await browser.new_page()
+                    await page.set_content(html_body, wait_until="load")
+                    pdf = await page.pdf(format="A4", print_background=True)
+                finally:
+                    await browser.close()
+        except (OSError, RuntimeError, PlaywrightError) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"PDF renderer unavailable; install Playwright Chromium browsers: {exc.__class__.__name__}",
+            ) from exc
+        return Response(pdf, media_type="application/pdf", headers={
+            "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.pdf"',
         })
     lines = [
         "# QSScope Scan Report", "",

@@ -109,7 +109,7 @@ export default function ProjectsPage() {
     if (response.ok) setScan(await response.json());
   }
 
-  function downloadReport(format: 'json' | 'markdown' | 'html' | 'docx') {
+  function downloadReport(format: 'json' | 'markdown' | 'html' | 'docx' | 'pdf') {
     if (scan) window.open(`${API}/scans/${scan.id}/report/export?format=${format}`, '_blank', 'noopener,noreferrer');
   }
 
@@ -171,6 +171,7 @@ export default function ProjectsPage() {
           <button onClick={() => downloadReport('markdown')} className="ml-2 mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">Markdown</button>
           <button onClick={() => downloadReport('html')} className="ml-2 mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">HTML</button>
           <button onClick={() => downloadReport('docx')} className="ml-2 mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">DOCX</button>
+          <button onClick={() => downloadReport('pdf')} className="ml-2 mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">PDF</button>
           {report.findings.length === 0 ? <p className="mt-4 text-sm text-emerald-600">No normalized findings were produced.</p> : <ul className="mt-4 space-y-2">{report.findings.map((finding, index) => <li key={`${finding.title}-${index}`} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700"><b>{finding.severity}</b> · {finding.status} · {finding.title}<p className="mt-1 text-slate-500">{finding.file_path && `${finding.file_path}:${finding.line ?? ''} — `}{finding.message}</p></li>)}</ul>}
         </section>}
       </div>
