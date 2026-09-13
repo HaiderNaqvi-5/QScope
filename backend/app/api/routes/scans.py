@@ -92,6 +92,11 @@ async def stop_scan(scan_id: str, db: AsyncSession = Depends(get_db_session)) ->
         raise HTTPException(status_code=404, detail="Scan session not found")
     if scan.status in {"COMPLETED", "FAILED", "CANCELLED", "ERROR"}:
         return _response(scan)
+    if scan.status == "AWAITING_APPROVAL":
+        scan.status = "CANCELLED"
+        await db.commit()
+        await db.refresh(scan)
+        return _response(scan)
     if not cancel_scan(scan_id):
         raise HTTPException(status_code=409, detail="Scan is not currently running")
     scan.status = "CANCELLING"
@@ -131,6 +136,8 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
         response_findings.append(response)
     return ScanReportResponse(
         scan_id=scan_id, status=scan.status or "PENDING",
+        approved=scan.approved == "true",
+        approval_required=any(task.get("requires_user_confirmation") for task in (scan.plan or [])),
         score=score_findings([finding.model_dump() for finding in response_findings]),
         findings=response_findings,
         task_count=len(scan.results or []),

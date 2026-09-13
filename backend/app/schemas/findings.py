@@ -20,6 +20,8 @@ class FindingResponse(BaseModel):
 class ScanReportResponse(BaseModel):
     scan_id: str
     status: str
+    approved: bool = False
+    approval_required: bool = False
     score: int
     findings: list[FindingResponse]
     task_count: int

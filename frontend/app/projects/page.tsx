@@ -78,6 +78,12 @@ export default function ProjectsPage() {
     if (response.ok) setScan(await response.json());
   }
 
+  async function cancelScan() {
+    if (!scan) return;
+    const response = await fetch(`${API}/scans/${scan.id}/cancel`, { method: 'POST' });
+    if (response.ok) setScan(await response.json());
+  }
+
   function downloadReport(format: 'json' | 'markdown') {
     if (scan) window.open(`${API}/scans/${scan.id}/report/export?format=${format}`, '_blank', 'noopener,noreferrer');
   }
@@ -119,6 +125,7 @@ export default function ProjectsPage() {
         {scan && <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Scan {scan.status.toLowerCase()}</h2><span className="text-sm text-slate-500">{scan.id.slice(0, 8)}</span></div>
           {scan.status === 'AWAITING_APPROVAL' && <button onClick={approveScan} className="mt-4 rounded-lg bg-amber-600 px-4 py-2 font-semibold text-white hover:bg-amber-700">Approve runtime stages</button>}
+          {['AWAITING_APPROVAL', 'PENDING', 'RUNNING'].includes(scan.status) && <button onClick={cancelScan} className="ml-2 mt-4 rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30">Cancel scan</button>}
           <ol className="mt-4 space-y-2">{scan.results.map((result) => <li key={result.task_id} className="rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><b>{result.task_id}</b> · {result.status}</li>)}</ol>
         </section>}
         {report && <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
