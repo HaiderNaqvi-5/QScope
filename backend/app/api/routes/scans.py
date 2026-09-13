@@ -316,6 +316,8 @@ th{{background:#eef2f7}}</style></head><body>
         f"- API specs: **{report.api_spec_count}**",
         f"- Postman collections: **{report.api_collection_count}**",
         f"- API testing readiness: **{report.api_testing_status}**", "",
+        f"- Security testing readiness: **{report.security_testing_status}**",
+        f"- Load testing readiness: **{report.load_testing_status}**", "",
         f"- Accessibility readiness: **{report.accessibility_status}**",
         f"- Performance readiness: **{report.performance_status}**", "",
         "## Findings",
