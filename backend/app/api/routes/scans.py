@@ -181,7 +181,7 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
 @router.get("/scans/{scan_id}/report/export")
 async def export_scan_report(
     scan_id: str,
-    format: str = Query("json", pattern="^(json|markdown|html)$"),
+    format: str = Query("json", pattern="^(json|markdown|html|docx)$"),
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     scan = await db.get(ScanSession, scan_id)
@@ -216,6 +216,37 @@ th{{background:#eef2f7}}</style></head><body>
 <tbody>{finding_rows}</tbody></table></body></html>"""
         return Response(body, media_type="text/html", headers={
             "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.html"',
+        })
+    if format == "docx":
+        from io import BytesIO
+        from docx import Document
+
+        document = Document()
+        document.add_heading("QSScope Scan Report", level=1)
+        document.add_paragraph(f"Scan: {report.scan_id}")
+        document.add_paragraph(f"Status: {report.status} | Score: {report.score}/100")
+        document.add_paragraph(
+            f"New: {report.new_findings} | Existing: {report.existing_findings} | "
+            f"Resolved: {report.resolved_findings}"
+        )
+        document.add_heading("Findings", level=2)
+        if report.findings:
+            table = document.add_table(rows=1, cols=4)
+            table.style = "Table Grid"
+            for cell, heading in zip(table.rows[0].cells, ("Severity", "Status", "Title", "Message")):
+                cell.text = heading
+            for finding in report.findings:
+                cells = table.add_row().cells
+                cells[0].text = finding.severity or ""
+                cells[1].text = finding.status
+                cells[2].text = finding.title
+                cells[3].text = finding.message
+        else:
+            document.add_paragraph("No normalized findings.")
+        buffer = BytesIO()
+        document.save(buffer)
+        return Response(buffer.getvalue(), media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={
+            "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.docx"',
         })
     lines = [
         "# QSScope Scan Report", "",

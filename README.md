@@ -97,7 +97,7 @@ collection readiness, Playwright browser-test readiness, lockfile and pyproject 
 inventory, deterministic CycloneDX SBOM export, structured adapters, findings, baselines,
 scoring, accessibility/performance readiness and evidence normalization, API test evidence
 normalization, history, and JSON/Markdown/HTML
-exports. Browser execution expansion, AI review, and DOCX/PDF
+exports, including DOCX. Browser execution expansion, AI review, and PDF
 reporting remain planned. See
 `Doc & prd/implementation.md` for the authoritative milestone status.
 
