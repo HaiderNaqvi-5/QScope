@@ -1,43 +1,88 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 export default function Home() {
+  const [backendStatus, setBackendStatus] = useState<string>('checking...');
+
+  useEffect(() => {
+    fetch('http://127.0.0.1:8000/api/health')
+      .then(res => {
+        if (res.ok) setBackendStatus('online');
+        else setBackendStatus('error');
+      })
+      .catch(() => setBackendStatus('offline'));
+  }, []);
+
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto px-4 py-16">
-        <div className="text-center space-y-6">
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">
+        <div className="text-center space-y-6 mb-12">
+          <h1 className="text-5xl font-bold tracking-tight text-slate-900 dark:text-white">
             QSScope
           </h1>
-          <p className="text-xl text-slate-600">
+          <p className="text-xl text-slate-600 dark:text-slate-300">
             Local Full-Stack Quality, Security & Testing Intelligence Platform
           </p>
-          <p className="text-base text-slate-500">
-            Coming soon in Milestone 1: Foundation
-          </p>
+        </div>
 
-          <div className="pt-8">
-            <div className="inline-block rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">
-                Bootstrap Status
-              </h2>
-              <ul className="space-y-2 text-left text-sm text-slate-600">
-                <li>✓ Repository structure created</li>
-                <li>✓ Documentation in place</li>
-                <li>✓ Backend scaffolding ready</li>
-                <li>✓ Frontend scaffolding ready</li>
-                <li>⏳ Milestone 1: Local Foundation (next)</li>
-              </ul>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Backend Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  backendStatus === 'online' ? 'bg-green-500' :
+                  backendStatus === 'error' ? 'bg-yellow-500' :
+                  'bg-red-500'
+                }`} />
+                <span className="capitalize font-medium">{backendStatus}</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                http://127.0.0.1:8000
+              </p>
+            </CardContent>
+          </Card>
 
-          <div className="pt-8">
-            <a
-              href="http://127.0.0.1:8000/docs"
-              className="inline-block rounded-lg bg-slate-900 px-6 py-3 font-semibold text-white hover:bg-slate-800 transition-colors"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              API Documentation
-            </a>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Milestone Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <p>✓ M0: Bootstrap</p>
+                <p>🔄 M1: Foundation</p>
+                <p>⏳ M2-M19: Planned</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-lg">Quick Links</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <a
+                  href="http://127.0.0.1:8000/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  → API Documentation
+                </a>
+                <a
+                  href="/settings"
+                  className="block text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  → Settings
+                </a>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </main>
