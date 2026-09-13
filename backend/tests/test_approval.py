@@ -24,3 +24,4 @@ def test_full_scan_report_requires_target_before_api_testing(tmp_path):
         scan = client.post(f"/api/projects/{project['id']}/scans", json={"mode": "FULL"}).json()
         report = client.get(f"/api/scans/{scan['id']}/report").json()
         assert report["api_testing_status"] == "API_SOURCE_FOUND_TARGET_REQUIRED"
+        assert report["security_testing_status"] == "NOT_CONFIGURED"

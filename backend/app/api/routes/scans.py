@@ -131,14 +131,24 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
     project = await db.get(Project, project_id)
     dependency_count = len((project.project_model or {}).get("dependencies", [])) if project else 0
     api_spec_count = len((project.project_model or {}).get("api_specs", [])) if project else 0
+    graphql_spec_count = len((project.project_model or {}).get("graphql_specs", [])) if project else 0
     postman_count = len((project.project_model or {}).get("postman_collections", [])) if project else 0
     runtime_target_configured = any(
-        task.get("task_id") in {"runtime-api", "runtime-postman"} and task.get("target") != "unconfigured"
+        task.get("task_id") in {"runtime-api", "runtime-graphql", "runtime-postman"} and task.get("target") != "unconfigured"
         for task in (scan.plan or [])
     )
-    api_task_present = any(task.get("task_id") in {"runtime-api", "runtime-postman"} for task in (scan.plan or []))
-    api_testing_status = "READY" if (api_spec_count or postman_count) and runtime_target_configured and api_task_present else (
-        "API_SOURCE_FOUND_TARGET_REQUIRED" if (api_spec_count or postman_count) else "NOT_CONFIGURED"
+    api_task_present = any(task.get("task_id") in {"runtime-api", "runtime-graphql", "runtime-postman"} for task in (scan.plan or []))
+    api_source_count = api_spec_count + graphql_spec_count + postman_count
+    api_testing_status = "READY" if api_source_count and runtime_target_configured and api_task_present else (
+        "API_SOURCE_FOUND_TARGET_REQUIRED" if api_source_count else "NOT_CONFIGURED"
+    )
+    security_task = next((task for task in (scan.plan or []) if task.get("task_id") == "runtime-zap"), None)
+    load_task = next((task for task in (scan.plan or []) if task.get("task_id") in {"runtime-k6", "runtime-jmeter"}), None)
+    security_status = "READY" if security_task and security_task.get("target") != "unconfigured" else (
+        "TARGET_REQUIRED" if security_task else "NOT_CONFIGURED"
+    )
+    load_status = "READY" if load_task and load_task.get("target") != "unconfigured" else (
+        "TARGET_REQUIRED" if load_task else "NOT_CONFIGURED"
     )
     accessibility_task = next((task for task in (scan.plan or []) if task.get("task_id") == "browser-accessibility"), None)
     performance_task = next((task for task in (scan.plan or []) if task.get("task_id") == "browser-performance"), None)
@@ -173,6 +183,8 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
         api_spec_count=api_spec_count,
         api_collection_count=postman_count,
         api_testing_status=api_testing_status,
+        security_testing_status=security_status,
+        load_testing_status=load_status,
         accessibility_status=accessibility_status,
         performance_status=performance_status,
     )
