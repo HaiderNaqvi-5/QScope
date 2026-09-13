@@ -31,3 +31,19 @@ def test_runtime_failure_is_actionable_without_raw_secret_data():
     })
     assert findings[0]["severity"] == "HIGH"
     assert "127.0.0.1:8000" in findings[0]["message"]
+
+
+def test_axe_violations_are_normalized():
+    findings = normalize_tool_output("scan", {
+        "tool": "axe", "stage": "ACCESSIBILITY", "output": '{"violations": [{"id": "button-name", "impact": "critical", "description": "Buttons must have discernible text", "nodes": [{"target": ["#save"], "failureSummary": "Fix any of the following"}]}]}'
+    })
+    assert findings[0]["severity"] == "CRITICAL"
+    assert "#save" in findings[0]["message"]
+
+
+def test_lighthouse_scores_are_normalized():
+    findings = normalize_tool_output("scan", {
+        "tool": "lighthouse", "stage": "PERFORMANCE", "output": '{"categories": {"performance": {"score": 0.4, "title": "Performance"}}, "audits": {}}'
+    })
+    assert findings[0]["title"] == "Lighthouse: performance"
+    assert findings[0]["severity"] == "HIGH"

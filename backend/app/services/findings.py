@@ -22,10 +22,16 @@ def normalize_result(scan_id: str, result: dict[str, Any]) -> dict[str, Any] | N
     task_id = str(result.get("task_id", "unknown"))
     severity = "HIGH" if task_id in {"secrets", "sast", "runtime-api", "runtime-postman", "browser-functional"} else "MEDIUM"
     title = f"{task_id} {status.lower()}"
-    if task_id in {"runtime-api", "runtime-postman", "browser-functional"}:
+    if task_id in {"runtime-api", "runtime-postman"}:
         target = result.get("target") or "configured local target"
         title = f"API test failed at {target}"
         message = f"Runtime API testing failed against {target}. {message}"
+    elif task_id == "browser-functional":
+        target = result.get("target") or "configured local target"
+        title = f"Browser test failed at {target}"
+        message = f"Browser testing failed against {target}. {message}"
+    elif task_id in {"browser-accessibility", "browser-performance"}:
+        title = f"{task_id} {status.lower()}"
     fingerprint = hashlib.sha256(f"{task_id}|{file_path}|{line}|{message}".encode()).hexdigest()
     return {
         "id": hashlib.sha256(f"{scan_id}|{fingerprint}".encode()).hexdigest()[:36],
@@ -48,15 +54,19 @@ def score_findings(findings: list[dict[str, Any]]) -> int:
 
 
 def normalize_tool_output(scan_id: str, result: dict[str, Any]) -> list[dict[str, Any]]:
-    """Normalize Semgrep or Gitleaks JSON without persisting secret content."""
+    """Normalize structured tool output without persisting secret content."""
     tool = result.get("tool")
-    if tool not in {"semgrep", "gitleaks"}:
+    if tool not in {"semgrep", "gitleaks", "axe", "lighthouse"}:
         finding = normalize_result(scan_id, result)
         return [finding] if finding else []
     try:
         payload = json.loads(str(result.get("output", "")) or "[]")
     except json.JSONDecodeError:
         return []
+    if tool == "axe":
+        return _normalize_axe(scan_id, result, payload)
+    if tool == "lighthouse":
+        return _normalize_lighthouse(scan_id, result, payload)
     records = payload.get("results", []) if isinstance(payload, dict) else payload
     normalized = []
     for record in records if isinstance(records, list) else []:
@@ -82,6 +92,57 @@ def normalize_tool_output(scan_id: str, result: dict[str, Any]) -> list[dict[str
             "fingerprint": fingerprint, "status": "OPEN",
         })
     return normalized
+
+
+def _finding(scan_id: str, result: dict[str, Any], key: str, title: str, severity: str, message: str, path: str | None = None) -> dict[str, Any]:
+    fingerprint = hashlib.sha256(f"{result.get('tool')}|{key}|{path}|{message}".encode()).hexdigest()
+    return {
+        "id": hashlib.sha256(f"{scan_id}|{fingerprint}".encode()).hexdigest()[:36],
+        "scan_id": scan_id, "title": title, "severity": severity,
+        "tool": result.get("tool", "qsscope"), "stage": result.get("stage", "BROWSER"),
+        "file_path": path, "line": None, "message": message[:1000],
+        "fingerprint": fingerprint, "status": "OPEN",
+    }
+
+
+def _normalize_axe(scan_id: str, result: dict[str, Any], payload: Any) -> list[dict[str, Any]]:
+    findings = []
+    for violation in payload.get("violations", []) if isinstance(payload, dict) else []:
+        rule = str(violation.get("id", "axe-violation"))
+        impact = str(violation.get("impact") or "moderate").lower()
+        severity = {"critical": "CRITICAL", "serious": "HIGH", "moderate": "MEDIUM", "minor": "LOW"}.get(impact, "MEDIUM")
+        for node in violation.get("nodes", [])[:20]:
+            target = ", ".join(str(item) for item in node.get("target", []))[:300]
+            summary = str(node.get("failureSummary") or violation.get("description") or "Accessibility rule failed")[:700]
+            findings.append(_finding(
+                scan_id, result, f"{rule}|{target}", f"Accessibility: {rule}", severity,
+                f"{summary} Target: {target}" if target else summary,
+            ))
+    return findings
+
+
+def _normalize_lighthouse(scan_id: str, result: dict[str, Any], payload: Any) -> list[dict[str, Any]]:
+    findings = []
+    categories = payload.get("categories", {}) if isinstance(payload, dict) else {}
+    audits = payload.get("audits", {}) if isinstance(payload, dict) else {}
+    for category_name, category in categories.items():
+        score = category.get("score") if isinstance(category, dict) else None
+        if isinstance(score, (int, float)) and score < 0.9:
+            severity = "HIGH" if score < 0.5 else "MEDIUM"
+            findings.append(_finding(
+                scan_id, result, f"category|{category_name}", f"Lighthouse: {category_name}",
+                severity, f"{category.get('title', category_name)} score is {score:.2f}.",
+            ))
+    for audit_id, audit in audits.items():
+        if not isinstance(audit, dict) or audit.get("scoreDisplayMode") in {"notApplicable", "informative", "manual"}:
+            continue
+        score = audit.get("score")
+        if isinstance(score, (int, float)) and score < 0.5:
+            findings.append(_finding(
+                scan_id, result, f"audit|{audit_id}", f"Lighthouse audit: {audit_id}",
+                "MEDIUM", str(audit.get("description") or audit.get("title") or "Performance audit failed"),
+            ))
+    return findings
 
 
 def deduplicate_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:

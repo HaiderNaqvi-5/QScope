@@ -95,7 +95,7 @@ The core local-first workflow is implemented and tested: discovery, preflight, s
 safe local execution, localhost API targets, OpenAPI/Schemathesis readiness, Postman/Newman
 collection readiness, Playwright browser-test readiness, lockfile and pyproject dependency
 inventory, deterministic CycloneDX SBOM export, structured adapters, findings, baselines,
-scoring, accessibility/performance readiness, history, and JSON/Markdown/HTML
+scoring, accessibility/performance readiness and evidence normalization, history, and JSON/Markdown/HTML
 exports. Browser execution expansion, AI review, and DOCX/PDF
 reporting remain planned. See
 `Doc & prd/implementation.md` for the authoritative milestone status.
