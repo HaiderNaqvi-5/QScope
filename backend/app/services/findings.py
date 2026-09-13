@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 _LOCATION = re.compile(r"(?P<file>[^\s:]+):(?P<line>\d+)(?::\d+)?")
@@ -214,3 +215,45 @@ def deduplicate_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]
     for finding in findings:
         unique.setdefault(finding["fingerprint"], finding)
     return list(unique.values())
+
+
+def analyze_code_hygiene(scan_id: str, root: Path) -> list[dict[str, Any]]:
+    """Find bounded, explainable code-hygiene patterns without inferring authorship."""
+    findings: list[dict[str, Any]] = []
+    extensions = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rs", ".php", ".cs"}
+    ignored = {".git", "node_modules", ".venv", "venv", "dist", "build", "coverage", ".next"}
+    files_seen = 0
+    for path in sorted(root.rglob("*")):
+        if files_seen >= 500 or not path.is_file() or path.suffix not in extensions:
+            continue
+        if ignored.intersection(path.parts):
+            continue
+        files_seen += 1
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for number, line in enumerate(lines[:10000], start=1):
+            stripped = line.strip()
+            pattern = None
+            message = ""
+            if re.search(r"\b(TODO|FIXME|HACK)\b", stripped, re.IGNORECASE):
+                pattern = "deferred-work-marker"
+                message = "Deferred-work marker found; resolve or track it before release."
+            elif re.search(r"\b(console\.log|print\s*\()", stripped) and "test" not in path.name.lower():
+                pattern = "debug-output"
+                message = "Debug output in application code may leak implementation details or noisy diagnostics."
+            elif stripped in {"pass", "..."} and number > 1:
+                pattern = "empty-code-block"
+                message = "Empty code block detected; make the intentional no-op explicit or implement the missing behavior."
+            if pattern:
+                findings.append(_finding(
+                    scan_id,
+                    {"tool": "qsscope", "stage": "CODE_HYGIENE"},
+                    f"{pattern}|{path}|{number}",
+                    f"Code hygiene: {pattern}",
+                    "LOW",
+                    message,
+                    str(path.relative_to(root)),
+                ) | {"line": str(number)})
+    return findings

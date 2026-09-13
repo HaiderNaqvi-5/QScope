@@ -13,7 +13,7 @@ from sqlalchemy import update
 
 from app.core.database import AsyncSessionLocal
 from app.models import ScanSession
-from app.services.findings import deduplicate_findings, normalize_tool_output
+from app.services.findings import analyze_code_hygiene, deduplicate_findings, normalize_tool_output
 
 _running: dict[str, asyncio.Task[None]] = {}
 _events: dict[str, asyncio.Queue[dict[str, Any]]] = {}
@@ -99,7 +99,11 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
             await _emit(session_id, {"status": "RUNNING", "task_id": task["task_id"], "message": f"Running {task['stage']}"})
             command = _command_for_task(task, Path(project_root))
             task_started = time.monotonic()
-            if task.get("requires_runtime") and task.get("target") == "unconfigured":
+            if task["task_id"] == "code-hygiene":
+                hygiene_findings = analyze_code_hygiene(session_id, Path(project_root))
+                findings.extend(hygiene_findings)
+                result = {"task_id": task["task_id"], "status": "PASSED", "output": f"Analyzed local source files; found {len(hygiene_findings)} advisory pattern(s)."}
+            elif task.get("requires_runtime") and task.get("target") == "unconfigured":
                 result = {"task_id": task["task_id"], "status": "SKIPPED_USER", "output": "Runtime target is not configured; confirm a localhost port before API testing."}
             elif command is None:
                 result = {"task_id": task["task_id"], "status": "TOOL_MISSING" if task["tool"] in {"semgrep", "gitleaks", "osv-scanner", "schemathesis", "newman", "playwright", "axe", "lighthouse"} else "PASSED", "output": "Tool unavailable or no executable configured for this stage."}

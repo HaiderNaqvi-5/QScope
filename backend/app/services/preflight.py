@@ -89,6 +89,7 @@ def build_scan_plan(project_id: str, model: dict[str, Any], mode: str) -> tuple[
         tasks.append(ScanTask(task_id="js-lint", stage="STATIC_ANALYSIS", adapter="javascript", tool="npm", target=".", depends_on=["preflight"]))
     tasks += [
         ScanTask(task_id="dependency-inventory", stage="DEPENDENCY_INVENTORY", adapter="core", tool="qsscope", target=".", depends_on=["preflight"]),
+        ScanTask(task_id="code-hygiene", stage="CODE_HYGIENE", adapter="qsscope", tool="qsscope", target=".", depends_on=["preflight"], estimated_cost="LOW"),
         ScanTask(task_id="secrets", stage="SECRETS", adapter="universal", tool="gitleaks", target=".", depends_on=["preflight"]),
         ScanTask(task_id="sast", stage="SAST", adapter="universal", tool="semgrep", target=".", depends_on=["preflight"]),
     ]
