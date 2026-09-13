@@ -10,7 +10,7 @@ A local-first, deterministic platform for analyzing software projects. QSScope d
 - **Multiple Scanning Modes**: Quick, Standard, and Full Audit scans
 - **Unified Findings Dashboard**: Consolidated results from multiple independent analyzers
 - **Regression Baselines**: Track quality improvements between scans
-- **Portable Reports**: Export deterministic JSON and Markdown reports today; DOCX/PDF remain planned
+- **Portable Reports**: Export deterministic JSON, Markdown, HTML, and CycloneDX SBOM reports; DOCX/PDF remain planned
 - **AI-Assisted Review**: Groq integration is planned and remains optional; no source leaves the machine by default
 
 ## Quick Start

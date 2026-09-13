@@ -17,6 +17,7 @@ type Project = {
 type Plan = { project_id: string; mode: string; tools: { display_name: string; available: boolean; version?: string }[]; tasks: { task_id: string; stage: string; tool: string; target?: string }[] };
 type Scan = { id: string; status: string; approved: boolean; approval_required: boolean; results: { task_id: string; status: string; output: string }[] };
 type Report = { score: number; dependency_count: number; api_spec_count: number; api_collection_count: number; api_testing_status: string; accessibility_status: string; performance_status: string; findings: { title: string; severity: string; status: string; file_path?: string; line?: string; message: string }[]; new_findings: number; existing_findings: number; resolved_findings: number };
+type ReportHistory = { id: string; scan_id: string; format: string; created_at?: string };
 
 const API = 'http://127.0.0.1:8000/api';
 
@@ -26,6 +27,7 @@ export default function ProjectsPage() {
   const [selected, setSelected] = useState<Plan | null>(null);
   const [scan, setScan] = useState<Scan | null>(null);
   const [report, setReport] = useState<Report | null>(null);
+  const [reportHistory, setReportHistory] = useState<ReportHistory[]>([]);
   const [runtimePort, setRuntimePort] = useState('');
   const [error, setError] = useState('');
 
@@ -43,10 +45,16 @@ export default function ProjectsPage() {
     await loadProjects();
   }
 
+  async function loadReportHistory(projectId: string) {
+    const response = await fetch(`${API}/projects/${projectId}/reports`);
+    if (response.ok) setReportHistory(await response.json());
+  }
+
   async function showPlan(id: string) {
     const response = await fetch(`${API}/projects/${id}/scan-plan`);
     if (!response.ok) { setError('Could not build scan plan.'); return; }
     setSelected(await response.json());
+    await loadReportHistory(id);
   }
 
   async function startScan() {
@@ -64,6 +72,7 @@ export default function ProjectsPage() {
       if (['COMPLETED', 'FAILED', 'CANCELLED', 'ERROR'].includes(status.status)) {
         window.clearInterval(timer);
         fetch(`${API}/scans/${initial.id}/report`).then((res) => res.json()).then(setReport);
+        fetch(`${API}/projects/${selected.project_id}/reports`).then((res) => res.json()).then(setReportHistory);
       }
     }, 1000);
   }
@@ -127,6 +136,10 @@ export default function ProjectsPage() {
             <span className="mt-1 block text-xs text-slate-500">Only 127.0.0.1 is accepted. The API stage remains approval-gated.</span>
           </label>}
           <button onClick={startScan} className="mt-5 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700">Run scan</button>
+        </section>}
+        {reportHistory.length > 0 && <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="text-xl font-semibold">Report export history</h2>
+          <ul className="mt-4 space-y-2">{reportHistory.map((item) => <li key={item.id} className="flex justify-between rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><span>{item.format.toUpperCase()}</span><span className="text-slate-500">{item.created_at ? new Date(item.created_at).toLocaleString() : 'unknown time'}</span></li>)}</ul>
         </section>}
         {scan && <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Scan {scan.status.toLowerCase()}</h2><span className="text-sm text-slate-500">{scan.id.slice(0, 8)}</span></div>
