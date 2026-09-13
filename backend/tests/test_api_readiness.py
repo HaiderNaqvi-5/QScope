@@ -71,3 +71,13 @@ def test_accessibility_and_performance_capabilities_are_planned(tmp_path):
         plan = client.get(f"/api/projects/{project['id']}/scan-plan?mode=FULL").json()
         assert next(task for task in plan["tasks"] if task["task_id"] == "browser-accessibility")["requires_user_confirmation"]
         assert next(task for task in plan["tasks"] if task["task_id"] == "browser-performance")["requires_user_confirmation"]
+
+
+def test_graphql_schema_is_detected_and_planned(tmp_path):
+    (tmp_path / "schema.graphql").write_text("type Query { health: String }")
+    with TestClient(app) as client:
+        project = client.post("/api/projects/discover", json={"root_path": str(tmp_path)}).json()
+        assert project["model"]["graphql_specs"][0]["value"] == "GraphQL"
+        plan = client.get(f"/api/projects/{project['id']}/scan-plan?mode=FULL").json()
+        task = next(task for task in plan["tasks"] if task["task_id"] == "runtime-graphql")
+        assert task["requires_user_confirmation"] is True

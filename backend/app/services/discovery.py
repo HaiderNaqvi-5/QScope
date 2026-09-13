@@ -36,7 +36,7 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
         "languages": [], "frameworks": [], "package_managers": [],
         "dependencies": [],
         "workspace_roots": [], "services": [], "frontend_targets": [],
-        "backend_targets": [], "api_specs": [], "postman_collections": [],
+        "backend_targets": [], "api_specs": [], "graphql_specs": [], "postman_collections": [],
         "postman_environments": [], "browser_tests": [], "accessibility_tests": [],
         "performance_tests": [], "runtime_targets": [], "database_indicators": [],
         "test_suites": [], "build_commands": [], "run_commands": [],
@@ -69,6 +69,8 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
                 model["postman_collections"].append(_evidence("Postman collection", [rel]))
             if filename.endswith(".postman_environment.json"):
                 model["postman_environments"].append(_evidence("Postman environment", [rel]))
+            if path.suffix in {".graphql", ".gql"}:
+                model["graphql_specs"].append(_evidence("GraphQL", [rel]))
             if filename in {"playwright.config.ts", "playwright.config.js", "playwright.config.mjs", "playwright.config.cjs"}:
                 model["browser_tests"].append(_evidence("Playwright", [rel]))
             if filename.endswith(".spec.ts") and "tests" in rel.lower():
@@ -103,6 +105,8 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
         if "lighthouse" in deps:
             model["performance_tests"].append(_evidence("Lighthouse", ["package.json"]))
             model["browser_tests"].append(_evidence("Playwright", ["package.json"], "medium"))
+        if any(name in deps for name in ("graphql", "graphql-request", "@apollo/client", "apollo-server")):
+            model["graphql_specs"].append(_evidence("GraphQL dependency", ["package.json"], "medium"))
         for lock_name in ("package-lock.json", "npm-shrinkwrap.json"):
             lock_path = root / lock_name
             if not lock_path.exists():

@@ -40,7 +40,7 @@ def inspect_tools(model: dict[str, Any]) -> list[ToolStatus]:
     if languages & {"JavaScript", "TypeScript"}:
         relevant |= {"node", "npm"}
     relevant |= {"git", "semgrep", "gitleaks", "osv-scanner"}
-    if model.get("api_specs"):
+    if model.get("api_specs") or model.get("graphql_specs"):
         relevant.add("schemathesis")
     if model.get("postman_collections"):
         relevant.add("newman")
@@ -88,6 +88,10 @@ def build_scan_plan(project_id: str, model: dict[str, Any], mode: str) -> tuple[
         runtime_targets = model.get("runtime_targets", [])
         target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
         tasks.append(ScanTask(task_id="runtime-api", stage="API_TESTING", adapter="universal", tool="schemathesis", target=target, depends_on=["preflight"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="HIGH"))
+    if mode == "FULL" and model.get("graphql_specs"):
+        runtime_targets = model.get("runtime_targets", [])
+        target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
+        tasks.append(ScanTask(task_id="runtime-graphql", stage="GRAPHQL_TESTING", adapter="schemathesis", tool="schemathesis", target=target, depends_on=["preflight"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="HIGH"))
     if mode == "FULL" and model.get("postman_collections"):
         runtime_targets = model.get("runtime_targets", [])
         target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"

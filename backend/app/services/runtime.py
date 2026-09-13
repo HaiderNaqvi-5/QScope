@@ -39,6 +39,8 @@ def _command_for_task(task: dict[str, Any], root: Path) -> list[str] | None:
         specs = sorted(root.glob("openapi.*")) + sorted(root.glob("swagger.*"))
         if specs and task.get("target", "unconfigured") != "unconfigured":
             return ["schemathesis", "run", str(specs[0]), "--base-url", task["target"]]
+        if task.get("task_id") == "runtime-graphql" and task.get("target", "unconfigured") != "unconfigured":
+            return ["schemathesis", "run", task["target"]]
     if tool == "newman" and shutil.which("newman") and task.get("target", "unconfigured") != "unconfigured":
         collections = sorted(root.rglob("*.postman_collection.json"))
         if collections:

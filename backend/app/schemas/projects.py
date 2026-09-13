@@ -35,6 +35,7 @@ class ProjectModel(BaseModel):
     frontend_targets: list[Evidence] = Field(default_factory=list)
     backend_targets: list[Evidence] = Field(default_factory=list)
     api_specs: list[Evidence] = Field(default_factory=list)
+    graphql_specs: list[Evidence] = Field(default_factory=list)
     postman_collections: list[Evidence] = Field(default_factory=list)
     postman_environments: list[Evidence] = Field(default_factory=list)
     browser_tests: list[Evidence] = Field(default_factory=list)
