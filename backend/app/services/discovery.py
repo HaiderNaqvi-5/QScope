@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +57,7 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
                 detected.setdefault(EXTENSIONS[path.suffix], []).append(rel)
             if filename in {
                 "package.json", "requirements.txt", "pyproject.toml", "poetry.lock",
+                "package-lock.json", "npm-shrinkwrap.json",
                 "Pipfile", "pom.xml", "build.gradle", "build.gradle.kts",
                 "composer.json", "go.mod", "Cargo.toml", "Dockerfile",
                 "docker-compose.yml", "docker-compose.yaml", "openapi.yaml",
@@ -94,6 +96,25 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
             {"name": name, "version": str(version), "manifest": "package.json"}
             for name, version in sorted(deps.items())
         )
+        for lock_name in ("package-lock.json", "npm-shrinkwrap.json"):
+            lock_path = root / lock_name
+            if not lock_path.exists():
+                continue
+            try:
+                lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                lock = {}
+            packages = lock.get("packages", {})
+            if isinstance(packages, dict):
+                for package_path, package_data in sorted(packages.items()):
+                    if not package_path or not isinstance(package_data, dict) or "version" not in package_data:
+                        continue
+                    name = package_path.removeprefix("node_modules/")
+                    if name.startswith("node_modules/"):
+                        name = name.rsplit("node_modules/", 1)[-1]
+                    model["dependencies"].append({
+                        "name": name, "version": str(package_data["version"]), "manifest": lock_name,
+                    })
         if "typescript" in deps:
             model["languages"].append(_evidence("TypeScript", ["package.json"], "high"))
         for dep, framework in {
@@ -118,6 +139,28 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
                 if line and not line.startswith(("#", "-")):
                     name, _, version = line.partition("==")
                     model["dependencies"].append({"name": name.strip(), "version": version.strip() or "*", "manifest": "requirements.txt"})
+        pyproject = root / "pyproject.toml"
+        if pyproject.exists():
+            try:
+                project_data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+                project_data = {}
+            pyproject_dependencies = project_data.get("project", {}).get("dependencies", [])
+            if isinstance(pyproject_dependencies, list):
+                for requirement in pyproject_dependencies:
+                    text = str(requirement).strip()
+                    if text:
+                        name = text.split("[", 1)[0].split(";", 1)[0]
+                        for operator in ("==", ">=", "<=", "~=", "!=", ">", "<"):
+                            if operator in name:
+                                name, version = name.split(operator, 1)
+                                model["dependencies"].append({
+                                    "name": name.strip(), "version": f"{operator}{version.strip()}",
+                                    "manifest": "pyproject.toml",
+                                })
+                                break
+                        else:
+                            model["dependencies"].append({"name": name.strip(), "version": "*", "manifest": "pyproject.toml"})
         model["frameworks"].extend(
             _evidence(name, files) for name, files in (
                 ("FastAPI", ["pyproject.toml"]), ("Django", ["requirements.txt"]),
