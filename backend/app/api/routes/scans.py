@@ -8,9 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
-from app.models import Baseline, Finding, Project, ScanSession
+from app.models import Baseline, Finding, Project, Report, ScanSession
 from app.schemas.projects import ProjectModel
-from app.schemas.scans import ScanSessionResponse, ScanStartRequest
+from app.schemas.scans import ReportHistoryResponse, ScanSessionResponse, ScanStartRequest
 from app.services.preflight import build_scan_plan
 from app.services.runtime import cancel_scan, event_stream, start_scan
 from app.services.findings import score_findings
@@ -184,7 +184,12 @@ async def export_scan_report(
     format: str = Query("json", pattern="^(json|markdown|html)$"),
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
+    scan = await db.get(ScanSession, scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan session not found")
     report = await scan_report(scan_id, db)
+    db.add(Report(id=str(uuid4()), scan_id=scan_id, format=format))
+    await db.commit()
     if format == "json":
         import json
         body = json.dumps(report.model_dump(), indent=2, default=str)
@@ -240,6 +245,25 @@ th{{background:#eef2f7}}</style></head><body>
     return Response("\n".join(lines) + "\n", media_type="text/markdown", headers={
         "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.md"',
     })
+
+
+@router.get("/projects/{project_id}/reports", response_model=list[ReportHistoryResponse])
+async def list_project_reports(
+    project_id: str,
+    db: AsyncSession = Depends(get_db_session),
+) -> list[ReportHistoryResponse]:
+    if not await db.get(Project, project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    reports = (await db.execute(
+        select(Report)
+        .join(ScanSession, Report.scan_id == ScanSession.id)
+        .where(ScanSession.project_id == project_id)
+        .order_by(Report.created_at.desc())
+    )).scalars().all()
+    return [
+        ReportHistoryResponse(id=report.id, scan_id=report.scan_id, format=report.format or "unknown", created_at=report.created_at)
+        for report in reports
+    ]
 
 
 @router.post("/scans/{scan_id}/baseline", response_model=ScanReportResponse)

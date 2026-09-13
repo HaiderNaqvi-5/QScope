@@ -33,6 +33,13 @@ class ScanSessionResponse(BaseModel):
     completed_at: datetime | None = None
 
 
+class ReportHistoryResponse(BaseModel):
+    id: str
+    scan_id: str
+    format: str
+    created_at: datetime | None = None
+
+
 class ScanEvent(BaseModel):
     session_id: str
     status: str

@@ -23,4 +23,7 @@ def test_report_exports_json_and_markdown(tmp_path):
         assert html.status_code == 200
         assert "<!doctype html>" in html.text
         assert html.headers["content-type"].startswith("text/html")
+        history = client.get(f"/api/projects/{project['id']}/reports")
+        assert history.status_code == 200
+        assert {item["format"] for item in history.json()} >= {"json", "markdown", "html"}
         assert client.get(f"/api/projects/{project['id']}/scans").status_code == 200
