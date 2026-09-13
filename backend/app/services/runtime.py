@@ -39,6 +39,15 @@ def _command_for_task(task: dict[str, Any], root: Path) -> list[str] | None:
         specs = sorted(root.glob("openapi.*")) + sorted(root.glob("swagger.*"))
         if specs and task.get("target", "unconfigured") != "unconfigured":
             return ["schemathesis", "run", str(specs[0]), "--base-url", task["target"]]
+    if tool == "newman" and shutil.which("newman") and task.get("target", "unconfigured") != "unconfigured":
+        collections = sorted(root.rglob("*.postman_collection.json"))
+        if collections:
+            command = ["newman", "run", str(collections[0])]
+            environments = sorted(root.rglob("*.postman_environment.json"))
+            if environments:
+                command.extend(["--environment", str(environments[0])])
+            command.extend(["--env-var", f"baseUrl={task['target']}", "--reporters", "cli"])
+            return command
     # Security tools are never guessed or invoked with unbounded arguments.
     return None
 
@@ -63,6 +72,7 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
                 result = {"task_id": task["task_id"], "status": "SKIPPED_USER", "output": "Stage skipped because it requires explicit user confirmation."}
                 result["stage"] = task["stage"]
                 result["tool"] = task["tool"]
+                result["target"] = task.get("target")
                 results.append(result)
                 await _emit(session_id, {"status": "SKIPPED_USER", "task_id": task["task_id"], "message": "Stage skipped by confirmation policy", "result": result})
                 continue
@@ -72,7 +82,7 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
             if task.get("requires_runtime") and task.get("target") == "unconfigured":
                 result = {"task_id": task["task_id"], "status": "SKIPPED_USER", "output": "Runtime target is not configured; confirm a localhost port before API testing."}
             elif command is None:
-                result = {"task_id": task["task_id"], "status": "TOOL_MISSING" if task["tool"] in {"semgrep", "gitleaks", "osv-scanner", "schemathesis"} else "PASSED", "output": "Tool unavailable or no executable configured for this stage."}
+                result = {"task_id": task["task_id"], "status": "TOOL_MISSING" if task["tool"] in {"semgrep", "gitleaks", "osv-scanner", "schemathesis", "newman"} else "PASSED", "output": "Tool unavailable or no executable configured for this stage."}
             else:
                 process = await asyncio.create_subprocess_exec(
                     *command, cwd=project_root, stdout=asyncio.subprocess.PIPE,

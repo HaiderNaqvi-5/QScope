@@ -34,3 +34,14 @@ def test_runtime_target_is_loopback_only_and_updates_plan(tmp_path):
         plan = client.get(f"/api/projects/{project['id']}/scan-plan?mode=FULL").json()
         runtime_task = next(task for task in plan["tasks"] if task["task_id"] == "runtime-api")
         assert runtime_task["target"] == "http://127.0.0.1:8000"
+
+
+def test_postman_collection_is_detected_and_planned(tmp_path):
+    (tmp_path / "local.postman_collection.json").write_text(json.dumps({"info": {"name": "local"}, "item": []}))
+    with TestClient(app) as client:
+        project = client.post("/api/projects/discover", json={"root_path": str(tmp_path)}).json()
+        assert project["model"]["postman_collections"][0]["value"] == "Postman collection"
+        plan = client.get(f"/api/projects/{project['id']}/scan-plan?mode=FULL").json()
+        task = next(task for task in plan["tasks"] if task["task_id"] == "runtime-postman")
+        assert task["requires_user_confirmation"] is True
+        assert task["target"] == "unconfigured"

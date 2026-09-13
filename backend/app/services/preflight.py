@@ -19,6 +19,7 @@ TOOL_DEFINITIONS = (
     ("gitleaks", "Gitleaks", False, "Install Gitleaks."),
     ("osv-scanner", "OSV-Scanner", False, "Install OSV-Scanner for dependency vulnerability analysis."),
     ("schemathesis", "Schemathesis", False, "Install Schemathesis for OpenAPI API testing."),
+    ("newman", "Newman", False, "Install Newman for Postman collection execution."),
 )
 
 
@@ -38,6 +39,8 @@ def inspect_tools(model: dict[str, Any]) -> list[ToolStatus]:
     relevant |= {"git", "semgrep", "gitleaks", "osv-scanner"}
     if model.get("api_specs"):
         relevant.add("schemathesis")
+    if model.get("postman_collections"):
+        relevant.add("newman")
     return [
         ToolStatus(
             id=tool_id, display_name=name, executable=tool_id,
@@ -76,4 +79,8 @@ def build_scan_plan(project_id: str, model: dict[str, Any], mode: str) -> tuple[
         runtime_targets = model.get("runtime_targets", [])
         target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
         tasks.append(ScanTask(task_id="runtime-api", stage="API_TESTING", adapter="universal", tool="schemathesis", target=target, depends_on=["preflight"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="HIGH"))
+    if mode == "FULL" and model.get("postman_collections"):
+        runtime_targets = model.get("runtime_targets", [])
+        target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
+        tasks.append(ScanTask(task_id="runtime-postman", stage="API_TESTING", adapter="newman", tool="newman", target=target, depends_on=["preflight"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="HIGH"))
     return tools, tasks

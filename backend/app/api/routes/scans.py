@@ -131,13 +131,15 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
     project = await db.get(Project, project_id)
     dependency_count = len((project.project_model or {}).get("dependencies", [])) if project else 0
     api_spec_count = len((project.project_model or {}).get("api_specs", [])) if project else 0
+    postman_count = len((project.project_model or {}).get("postman_collections", [])) if project else 0
     runtime_target_configured = any(
-        task.get("task_id") == "runtime-api" and task.get("target") != "unconfigured"
+        task.get("task_id") in {"runtime-api", "runtime-postman"} and task.get("target") != "unconfigured"
         for task in (scan.plan or [])
     )
-    api_testing_status = "READY" if api_spec_count and runtime_target_configured and any(
-        task.get("task_id") == "runtime-api" for task in (scan.plan or [])
-    ) else ("SPEC_FOUND_TARGET_REQUIRED" if api_spec_count else "NOT_CONFIGURED")
+    api_task_present = any(task.get("task_id") in {"runtime-api", "runtime-postman"} for task in (scan.plan or []))
+    api_testing_status = "READY" if (api_spec_count or postman_count) and runtime_target_configured and api_task_present else (
+        "API_SOURCE_FOUND_TARGET_REQUIRED" if (api_spec_count or postman_count) else "NOT_CONFIGURED"
+    )
     baseline = (await db.execute(
         select(Baseline).where(Baseline.project_id == project_id).order_by(Baseline.created_at.desc())
     )).scalars().first()
@@ -159,6 +161,7 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
         existing_findings=sum(1 for finding in response_findings if finding.status == "EXISTING"),
         dependency_count=dependency_count,
         api_spec_count=api_spec_count,
+        api_collection_count=postman_count,
         api_testing_status=api_testing_status,
     )
 
@@ -185,6 +188,7 @@ async def export_scan_report(
         f"- Existing findings: **{report.existing_findings}**", "",
         f"- Dependencies inventoried: **{report.dependency_count}**", "",
         f"- API specs: **{report.api_spec_count}**",
+        f"- Postman collections: **{report.api_collection_count}**",
         f"- API testing readiness: **{report.api_testing_status}**", "",
         "## Findings",
     ]

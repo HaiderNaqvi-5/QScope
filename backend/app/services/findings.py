@@ -20,12 +20,17 @@ def normalize_result(scan_id: str, result: dict[str, Any]) -> dict[str, Any] | N
     line = match.group("line") if match else None
     message = output.splitlines()[-1][:1000] if output else f"Task {result.get('task_id')} did not complete successfully."
     task_id = str(result.get("task_id", "unknown"))
-    severity = "HIGH" if task_id in {"secrets", "sast"} else "MEDIUM"
+    severity = "HIGH" if task_id in {"secrets", "sast", "runtime-api", "runtime-postman"} else "MEDIUM"
+    title = f"{task_id} {status.lower()}"
+    if task_id in {"runtime-api", "runtime-postman"}:
+        target = result.get("target") or "configured local target"
+        title = f"API test failed at {target}"
+        message = f"Runtime API testing failed against {target}. {message}"
     fingerprint = hashlib.sha256(f"{task_id}|{file_path}|{line}|{message}".encode()).hexdigest()
     return {
         "id": hashlib.sha256(f"{scan_id}|{fingerprint}".encode()).hexdigest()[:36],
         "scan_id": scan_id,
-        "title": f"{task_id} {status.lower()}",
+        "title": title,
         "severity": severity,
         "tool": result.get("tool", "qsscope"),
         "stage": result.get("stage", "SCAN"),

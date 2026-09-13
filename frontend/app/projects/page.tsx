@@ -16,7 +16,7 @@ type Project = {
 };
 type Plan = { project_id: string; mode: string; tools: { display_name: string; available: boolean; version?: string }[]; tasks: { task_id: string; stage: string; tool: string; target?: string }[] };
 type Scan = { id: string; status: string; approved: boolean; approval_required: boolean; results: { task_id: string; status: string; output: string }[] };
-type Report = { score: number; dependency_count: number; api_spec_count: number; api_testing_status: string; findings: { title: string; severity: string; status: string; file_path?: string; line?: string; message: string }[]; new_findings: number; existing_findings: number };
+type Report = { score: number; dependency_count: number; api_spec_count: number; api_collection_count: number; api_testing_status: string; findings: { title: string; severity: string; status: string; file_path?: string; line?: string; message: string }[]; new_findings: number; existing_findings: number };
 
 const API = 'http://127.0.0.1:8000/api';
 
@@ -136,7 +136,7 @@ export default function ProjectsPage() {
         </section>}
         {report && <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Quality report</h2><span className="text-3xl font-bold text-blue-600">{report.score}/100</span></div>
-          <p className="mt-2 text-sm text-slate-500">{report.new_findings} new · {report.existing_findings} existing findings · {report.dependency_count} dependencies inventoried · API: {report.api_testing_status}</p>
+          <p className="mt-2 text-sm text-slate-500">{report.new_findings} new · {report.existing_findings} existing findings · {report.dependency_count} dependencies inventoried · {report.api_spec_count} OpenAPI specs · {report.api_collection_count} Postman collections · API: {report.api_testing_status}</p>
           <button onClick={saveBaseline} className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">Save baseline</button>
           <button onClick={() => downloadReport('json')} className="ml-2 mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">JSON</button>
           <button onClick={() => downloadReport('markdown')} className="ml-2 mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">Markdown</button>

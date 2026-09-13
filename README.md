@@ -92,8 +92,9 @@ pnpm run test
 ## Status
 
 The core local-first workflow is implemented and tested: discovery, preflight, scan planning,
-safe local execution, structured adapters, findings, baselines, scoring, history, and JSON/Markdown
-exports. Browser/runtime expansion, AI review, and DOCX/PDF reporting remain planned. See
+safe local execution, localhost API targets, OpenAPI/Schemathesis readiness, Postman/Newman
+collection readiness, structured adapters, findings, baselines, scoring, history, and
+JSON/Markdown exports. Browser expansion, AI review, and DOCX/PDF reporting remain planned. See
 `Doc & prd/implementation.md` for the authoritative milestone status.
 
 ## License

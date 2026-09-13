@@ -35,7 +35,8 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
         "languages": [], "frameworks": [], "package_managers": [],
         "dependencies": [],
         "workspace_roots": [], "services": [], "frontend_targets": [],
-        "backend_targets": [], "api_specs": [], "runtime_targets": [], "database_indicators": [],
+        "backend_targets": [], "api_specs": [], "postman_collections": [],
+        "postman_environments": [], "runtime_targets": [], "database_indicators": [],
         "test_suites": [], "build_commands": [], "run_commands": [],
         "docker": {}, "git": {}, "confidence": {}, "files_scanned": 0,
     }
@@ -61,6 +62,10 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
                 "openapi.yml", "openapi.json", "swagger.yaml", "swagger.json",
             }:
                 manifests.add(rel)
+            if filename.endswith(".postman_collection.json"):
+                model["postman_collections"].append(_evidence("Postman collection", [rel]))
+            if filename.endswith(".postman_environment.json"):
+                model["postman_environments"].append(_evidence("Postman environment", [rel]))
             if "test" in filename.lower() or "spec" in filename.lower():
                 model["test_suites"].append(_evidence("detected-test-files", [rel], "medium"))
 
