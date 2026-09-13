@@ -17,6 +17,7 @@ TOOL_DEFINITIONS = (
     ("ruff", "Ruff", False, "Install Ruff or add it to the project environment."),
     ("semgrep", "Semgrep", False, "Install Semgrep Community Edition."),
     ("gitleaks", "Gitleaks", False, "Install Gitleaks."),
+    ("osv-scanner", "OSV-Scanner", False, "Install OSV-Scanner for dependency vulnerability analysis."),
 )
 
 
@@ -33,7 +34,7 @@ def inspect_tools(model: dict[str, Any]) -> list[ToolStatus]:
     relevant = {"python", "pytest", "ruff"} if "Python" in languages else set()
     if languages & {"JavaScript", "TypeScript"}:
         relevant |= {"node", "npm"}
-    relevant |= {"git", "semgrep", "gitleaks"}
+    relevant |= {"git", "semgrep", "gitleaks", "osv-scanner"}
     return [
         ToolStatus(
             id=tool_id, display_name=name, executable=tool_id,
@@ -62,9 +63,12 @@ def build_scan_plan(project_id: str, model: dict[str, Any], mode: str) -> tuple[
     if languages & {"JavaScript", "TypeScript"}:
         tasks.append(ScanTask(task_id="js-lint", stage="STATIC_ANALYSIS", adapter="javascript", tool="npm", target=".", depends_on=["preflight"]))
     tasks += [
+        ScanTask(task_id="dependency-inventory", stage="DEPENDENCY_INVENTORY", adapter="core", tool="qsscope", target=".", depends_on=["preflight"]),
         ScanTask(task_id="secrets", stage="SECRETS", adapter="universal", tool="gitleaks", target=".", depends_on=["preflight"]),
         ScanTask(task_id="sast", stage="SAST", adapter="universal", tool="semgrep", target=".", depends_on=["preflight"]),
     ]
+    if any(tool.id == "osv-scanner" and tool.available for tool in tools):
+        tasks.append(ScanTask(task_id="dependency-audit", stage="DEPENDENCY_VULNERABILITIES", adapter="universal", tool="osv-scanner", target=".", depends_on=["dependency-inventory"]))
     if mode == "FULL":
         tasks += [
             ScanTask(task_id="runtime-api", stage="API_TESTING", adapter="universal", tool="schemathesis", target=".", depends_on=["preflight"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="HIGH"),

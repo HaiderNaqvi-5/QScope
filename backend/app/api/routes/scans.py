@@ -89,6 +89,8 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
         raise HTTPException(status_code=404, detail="Scan session not found")
     findings = (await db.execute(select(Finding).where(Finding.scan_id == scan_id))).scalars().all()
     project_id = scan.project_id
+    project = await db.get(Project, project_id)
+    dependency_count = len((project.project_model or {}).get("dependencies", [])) if project else 0
     baseline = (await db.execute(
         select(Baseline).where(Baseline.project_id == project_id).order_by(Baseline.created_at.desc())
     )).scalars().first()
@@ -106,6 +108,7 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
         failed_tasks=sum(1 for result in (scan.results or []) if result.get("status") in {"FAILED", "TIMED_OUT", "TOOL_MISSING"}),
         new_findings=sum(1 for finding in response_findings if finding.status == "NEW"),
         existing_findings=sum(1 for finding in response_findings if finding.status == "EXISTING"),
+        dependency_count=dependency_count,
     )
 
 
@@ -129,6 +132,7 @@ async def export_scan_report(
         f"- Score: **{report.score}/100**",
         f"- New findings: **{report.new_findings}**",
         f"- Existing findings: **{report.existing_findings}**", "",
+        f"- Dependencies inventoried: **{report.dependency_count}**", "",
         "## Findings",
     ]
     if report.findings:

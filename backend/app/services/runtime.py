@@ -33,6 +33,8 @@ def _command_for_task(task: dict[str, Any], root: Path) -> list[str] | None:
         return ["semgrep", "--config", "auto", "--json", "--quiet", str(root)]
     if tool == "gitleaks" and shutil.which("gitleaks"):
         return ["gitleaks", "detect", "--source", str(root), "--report-format", "json", "--report-path", "-"]
+    if tool == "osv-scanner" and shutil.which("osv-scanner"):
+        return ["osv-scanner", "scan", "source", "-r", str(root)]
     # Security tools are never guessed or invoked with unbounded arguments.
     return None
 
@@ -57,7 +59,7 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
             command = _command_for_task(task, Path(project_root))
             task_started = time.monotonic()
             if command is None:
-                result = {"task_id": task["task_id"], "status": "TOOL_MISSING" if task["tool"] in {"semgrep", "gitleaks"} else "PASSED", "output": "Tool unavailable or no executable configured for this stage."}
+                result = {"task_id": task["task_id"], "status": "TOOL_MISSING" if task["tool"] in {"semgrep", "gitleaks", "osv-scanner"} else "PASSED", "output": "Tool unavailable or no executable configured for this stage."}
             else:
                 process = await asyncio.create_subprocess_exec(
                     *command, cwd=project_root, stdout=asyncio.subprocess.PIPE,

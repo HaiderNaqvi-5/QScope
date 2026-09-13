@@ -33,6 +33,7 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
 
     model: dict[str, Any] = {
         "languages": [], "frameworks": [], "package_managers": [],
+        "dependencies": [],
         "workspace_roots": [], "services": [], "frontend_targets": [],
         "backend_targets": [], "api_specs": [], "database_indicators": [],
         "test_suites": [], "build_commands": [], "run_commands": [],
@@ -80,6 +81,10 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             package = {}
         deps = {**package.get("dependencies", {}), **package.get("devDependencies", {})}
+        model["dependencies"].extend(
+            {"name": name, "version": str(version), "manifest": "package.json"}
+            for name, version in sorted(deps.items())
+        )
         if "typescript" in deps:
             model["languages"].append(_evidence("TypeScript", ["package.json"], "high"))
         for dep, framework in {
@@ -97,6 +102,13 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
 
     if "requirements.txt" in {Path(p).name for p in manifests} or "pyproject.toml" in {Path(p).name for p in manifests}:
         model["package_managers"].append(_evidence("pip/pyproject", [p for p in manifests if Path(p).name in {"requirements.txt", "pyproject.toml"}]))
+        requirements = root / "requirements.txt"
+        if requirements.exists():
+            for raw_line in requirements.read_text(errors="ignore").splitlines():
+                line = raw_line.strip()
+                if line and not line.startswith(("#", "-")):
+                    name, _, version = line.partition("==")
+                    model["dependencies"].append({"name": name.strip(), "version": version.strip() or "*", "manifest": "requirements.txt"})
         model["frameworks"].extend(
             _evidence(name, files) for name, files in (
                 ("FastAPI", ["pyproject.toml"]), ("Django", ["requirements.txt"]),

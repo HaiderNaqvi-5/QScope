@@ -18,6 +18,7 @@ class ProjectModel(BaseModel):
     languages: list[Evidence] = Field(default_factory=list)
     frameworks: list[Evidence] = Field(default_factory=list)
     package_managers: list[Evidence] = Field(default_factory=list)
+    dependencies: list[dict[str, str]] = Field(default_factory=list)
     workspace_roots: list[str] = Field(default_factory=list)
     services: list[Evidence] = Field(default_factory=list)
     frontend_targets: list[Evidence] = Field(default_factory=list)

@@ -26,3 +26,4 @@ class ScanReportResponse(BaseModel):
     failed_tasks: int
     new_findings: int = 0
     existing_findings: int = 0
+    dependency_count: int = 0
