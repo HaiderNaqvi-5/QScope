@@ -80,6 +80,12 @@ export default function Home() {
                 >
                   → Settings
                 </a>
+                <a
+                  href="/projects"
+                  className="block text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  → Discover a project and build a scan plan
+                </a>
               </div>
             </CardContent>
           </Card>

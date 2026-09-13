@@ -1,5 +1,5 @@
 """SQLAlchemy models for all entities."""
-from sqlalchemy import Column, String, DateTime, JSON, Integer, Boolean, Float
+from sqlalchemy import Column, String, DateTime, JSON
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -10,6 +10,7 @@ class Project(Base):
     id = Column(String(36), primary_key=True)
     name = Column(String(255), nullable=False)
     root_path = Column(String(2048), unique=True, nullable=False)
+    project_model = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

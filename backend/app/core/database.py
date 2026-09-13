@@ -51,13 +51,10 @@ async def init_db() -> None:
     
     This will be called on application startup.
     """
-    # Enable WAL mode for SQLite (concurrent reads)
-    async with engine.raw_connection() as conn:
+    # Enable WAL mode and create tables in one managed async connection.
+    async with engine.begin() as conn:
         await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
         await conn.exec_driver_sql("PRAGMA synchronous=NORMAL")
-
-    # Create tables
-    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
