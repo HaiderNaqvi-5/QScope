@@ -63,13 +63,17 @@ export default function ProjectsPage() {
         window.clearInterval(timer);
         fetch(`${API}/scans/${initial.id}/report`).then((res) => res.json()).then(setReport);
       }
-
-      async function saveBaseline() {
-        if (!scan) return;
-        const response = await fetch(`${API}/scans/${scan.id}/baseline`, { method: 'POST' });
-        if (response.ok) setReport(await response.json());
-      }
     }, 1000);
+  }
+
+  async function saveBaseline() {
+    if (!scan) return;
+    const response = await fetch(`${API}/scans/${scan.id}/baseline`, { method: 'POST' });
+    if (response.ok) setReport(await response.json());
+  }
+
+  function downloadReport(format: 'json' | 'markdown') {
+    if (scan) window.open(`${API}/scans/${scan.id}/report/export?format=${format}`, '_blank', 'noopener,noreferrer');
   }
 
   return (
@@ -114,6 +118,8 @@ export default function ProjectsPage() {
           <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Quality report</h2><span className="text-3xl font-bold text-blue-600">{report.score}/100</span></div>
           <p className="mt-2 text-sm text-slate-500">{report.new_findings} new · {report.existing_findings} existing findings</p>
           <button onClick={saveBaseline} className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">Save baseline</button>
+          <button onClick={() => downloadReport('json')} className="ml-2 mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">JSON</button>
+          <button onClick={() => downloadReport('markdown')} className="ml-2 mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">Markdown</button>
           {report.findings.length === 0 ? <p className="mt-4 text-sm text-emerald-600">No normalized findings were produced.</p> : <ul className="mt-4 space-y-2">{report.findings.map((finding, index) => <li key={`${finding.title}-${index}`} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700"><b>{finding.severity}</b> · {finding.status} · {finding.title}<p className="mt-1 text-slate-500">{finding.file_path && `${finding.file_path}:${finding.line ?? ''} — `}{finding.message}</p></li>)}</ul>}
         </section>}
       </div>

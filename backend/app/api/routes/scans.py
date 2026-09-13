@@ -2,8 +2,8 @@
 from datetime import datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +48,16 @@ async def get_scan(scan_id: str, db: AsyncSession = Depends(get_db_session)) -> 
     if not scan:
         raise HTTPException(status_code=404, detail="Scan session not found")
     return _response(scan)
+
+
+@router.get("/projects/{project_id}/scans", response_model=list[ScanSessionResponse])
+async def list_project_scans(project_id: str, db: AsyncSession = Depends(get_db_session)) -> list[ScanSessionResponse]:
+    if not await db.get(Project, project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    scans = (await db.execute(
+        select(ScanSession).where(ScanSession.project_id == project_id).order_by(ScanSession.created_at.desc())
+    )).scalars().all()
+    return [_response(scan) for scan in scans]
 
 
 @router.post("/scans/{scan_id}/cancel", response_model=ScanSessionResponse)
@@ -97,6 +107,42 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
         new_findings=sum(1 for finding in response_findings if finding.status == "NEW"),
         existing_findings=sum(1 for finding in response_findings if finding.status == "EXISTING"),
     )
+
+
+@router.get("/scans/{scan_id}/report/export")
+async def export_scan_report(
+    scan_id: str,
+    format: str = Query("json", pattern="^(json|markdown)$"),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    report = await scan_report(scan_id, db)
+    if format == "json":
+        import json
+        body = json.dumps(report.model_dump(), indent=2, default=str)
+        return Response(body, media_type="application/json", headers={
+            "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.json"',
+        })
+    lines = [
+        "# QSScope Scan Report", "",
+        f"- Scan: `{report.scan_id}`",
+        f"- Status: **{report.status}**",
+        f"- Score: **{report.score}/100**",
+        f"- New findings: **{report.new_findings}**",
+        f"- Existing findings: **{report.existing_findings}**", "",
+        "## Findings",
+    ]
+    if report.findings:
+        lines.extend(
+            f"- **{finding.severity} / {finding.status}** {finding.title}"
+            f" — {(finding.file_path + ':' + (finding.line or '')) if finding.file_path else 'project'}"
+            f" — {finding.message}"
+            for finding in report.findings
+        )
+    else:
+        lines.append("- No normalized findings.")
+    return Response("\n".join(lines) + "\n", media_type="text/markdown", headers={
+        "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.md"',
+    })
 
 
 @router.post("/scans/{scan_id}/baseline", response_model=ScanReportResponse)
