@@ -16,6 +16,7 @@ type Project = {
 };
 type Plan = { project_id: string; mode: string; tools: { display_name: string; available: boolean; version?: string }[]; tasks: { task_id: string; stage: string; tool: string; target?: string }[] };
 type Scan = { id: string; status: string; approved: boolean; approval_required: boolean; results: { task_id: string; status: string; output: string }[] };
+type RuntimeHealth = { status: string; target?: string; status_code?: number; latency_ms?: number; error?: string };
 type Report = { score: number; dependency_count: number; api_spec_count: number; api_collection_count: number; api_testing_status: string; accessibility_status: string; performance_status: string; findings: { title: string; severity: string; status: string; file_path?: string; line?: string; message: string }[]; new_findings: number; existing_findings: number; resolved_findings: number };
 type ReportHistory = { id: string; scan_id: string; format: string; created_at?: string };
 
@@ -29,6 +30,7 @@ export default function ProjectsPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [reportHistory, setReportHistory] = useState<ReportHistory[]>([]);
   const [runtimePort, setRuntimePort] = useState('');
+  const [runtimeHealth, setRuntimeHealth] = useState<RuntimeHealth | null>(null);
   const [error, setError] = useState('');
 
   const loadProjects = () => fetch(`${API}/projects`).then((res) => res.json()).then(setProjects).catch(() => setError('Backend is offline.'));
@@ -73,6 +75,18 @@ export default function ProjectsPage() {
         window.clearInterval(timer);
         fetch(`${API}/scans/${initial.id}/report`).then((res) => res.json()).then(setReport);
         fetch(`${API}/projects/${selected.project_id}/reports`).then((res) => res.json()).then(setReportHistory);
+      }
+
+      async function checkRuntimeHealth() {
+        if (!selected || !runtimePort) return;
+        const configured = await fetch(`${API}/projects/${selected.project_id}/runtime-target`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ host: '127.0.0.1', port: Number(runtimePort), scheme: 'http' }),
+        });
+        if (!configured.ok) { setError('Could not configure runtime target.'); return; }
+        const response = await fetch(`${API}/projects/${selected.project_id}/runtime-target/health`);
+        if (response.ok) setRuntimeHealth(await response.json());
+        else setError('Could not check runtime target health.');
       }
     }, 1000);
   }
@@ -131,9 +145,11 @@ export default function ProjectsPage() {
             {selected.tools.map((tool) => <div key={tool.display_name} className="flex justify-between rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><span>{tool.display_name}</span><span className={tool.available ? 'text-green-600' : 'text-amber-600'}>{tool.available ? tool.version ?? 'available' : 'missing'}</span></div>)}
           </div>
           <ol className="mt-5 space-y-2">{selected.tasks.map((task) => <li key={task.task_id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700"><b>{task.stage}</b> · {task.tool}{task.target && ` · ${task.target}`}</li>)}</ol>
-          {selected.tasks.some((task) => task.task_id === 'runtime-api') && <label className="mt-5 block text-sm font-medium">Local API port
+          {selected.tasks.some((task) => ['runtime-api', 'runtime-graphql', 'runtime-postman'].includes(task.task_id)) && <label className="mt-5 block text-sm font-medium">Local API port
             <input value={runtimePort} onChange={(event) => setRuntimePort(event.target.value)} type="number" min="1" max="65535" placeholder="8000" className="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-950" />
             <span className="mt-1 block text-xs text-slate-500">Only 127.0.0.1 is accepted. The API stage remains approval-gated.</span>
+            <button type="button" onClick={checkRuntimeHealth} disabled={!runtimePort} className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800">Check runtime health</button>
+            {runtimeHealth && <span className={`ml-3 text-sm ${runtimeHealth.status === 'HEALTHY' ? 'text-emerald-600' : 'text-amber-600'}`}>{runtimeHealth.status}{runtimeHealth.status_code ? ` (${runtimeHealth.status_code})` : ''}{runtimeHealth.latency_ms !== undefined ? ` · ${runtimeHealth.latency_ms} ms` : ''}</span>}
           </label>}
           <button onClick={startScan} className="mt-5 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700">Run scan</button>
         </section>}
