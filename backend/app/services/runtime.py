@@ -56,6 +56,16 @@ def _command_for_task(task: dict[str, Any], root: Path) -> list[str] | None:
         return ["npx", "--no-install", "playwright", "test", "--grep", "@a11y", "--reporter=line"]
     if tool == "lighthouse" and shutil.which("npx") and task.get("target", "unconfigured") != "unconfigured":
         return ["npx", "--no-install", "lighthouse", task["target"], "--output=json", "--output-path=stdout", "--quiet"]
+    if tool == "zap-baseline.py" and shutil.which("zap-baseline.py") and task.get("target", "unconfigured") != "unconfigured":
+        return ["zap-baseline.py", "-t", task["target"], "-J", "-"]
+    if tool == "k6" and shutil.which("k6") and task.get("target", "unconfigured") != "unconfigured":
+        scripts = sorted(root.glob("k6.js")) + sorted(root.glob("*.k6.js")) + sorted(root.glob("loadtest.js"))
+        if scripts:
+            return ["k6", "run", "--vus", "1", "--duration", "10s", str(scripts[0])]
+    if tool == "jmeter" and shutil.which("jmeter") and task.get("target", "unconfigured") != "unconfigured":
+        plans = sorted(root.glob("*.jmx"))
+        if plans:
+            return ["jmeter", "-n", "-t", str(plans[0]), "-JbaseUrl=" + task["target"], "-l", str(root / ".qsscope-jmeter-results.jtl")]
     # Security tools are never guessed or invoked with unbounded arguments.
     return None
 

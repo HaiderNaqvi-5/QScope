@@ -38,7 +38,8 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
         "workspace_roots": [], "services": [], "frontend_targets": [],
         "backend_targets": [], "api_specs": [], "graphql_specs": [], "postman_collections": [],
         "postman_environments": [], "browser_tests": [], "accessibility_tests": [],
-        "performance_tests": [], "runtime_targets": [], "database_indicators": [],
+        "performance_tests": [], "security_tests": [], "load_tests": [],
+        "runtime_targets": [], "database_indicators": [],
         "test_suites": [], "build_commands": [], "run_commands": [],
         "docker": {}, "git": {}, "confidence": {}, "files_scanned": 0,
     }
@@ -71,6 +72,12 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
                 model["postman_environments"].append(_evidence("Postman environment", [rel]))
             if path.suffix in {".graphql", ".gql"}:
                 model["graphql_specs"].append(_evidence("GraphQL", [rel]))
+            if filename in {"k6.js", "loadtest.js", "load-test.js"} or filename.endswith(".k6.js"):
+                model["load_tests"].append(_evidence("k6", [rel]))
+            if path.suffix == ".jmx":
+                model["load_tests"].append(_evidence("JMeter plan", [rel]))
+            if filename.lower() in {"zap.yaml", "zap.yml", "zap.conf"}:
+                model["security_tests"].append(_evidence("OWASP ZAP", [rel]))
             if filename in {"playwright.config.ts", "playwright.config.js", "playwright.config.mjs", "playwright.config.cjs"}:
                 model["browser_tests"].append(_evidence("Playwright", [rel]))
             if filename.endswith(".spec.ts") and "tests" in rel.lower():

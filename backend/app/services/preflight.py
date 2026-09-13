@@ -23,6 +23,9 @@ TOOL_DEFINITIONS = (
     ("playwright", "Playwright", False, "Install project Playwright dependencies and browsers."),
     ("axe", "axe-core", False, "Install axe-core Playwright integration in the project."),
     ("lighthouse", "Lighthouse", False, "Install Lighthouse in the project or globally."),
+    ("zap-baseline.py", "OWASP ZAP", False, "Install ZAP and ensure zap-baseline.py is on PATH."),
+    ("k6", "k6", False, "Install k6 for bounded local load testing."),
+    ("jmeter", "Apache JMeter", False, "Install JMeter for local .jmx plan execution."),
 )
 
 
@@ -50,6 +53,10 @@ def inspect_tools(model: dict[str, Any]) -> list[ToolStatus]:
         relevant |= {"axe", "playwright"}
     if model.get("performance_tests"):
         relevant.add("lighthouse")
+    if model.get("security_tests"):
+        relevant.add("zap-baseline.py")
+    if model.get("load_tests"):
+        relevant |= {"k6", "jmeter"}
     return [
         ToolStatus(
             id=tool_id, display_name=name, executable=tool_id,
@@ -108,4 +115,14 @@ def build_scan_plan(project_id: str, model: dict[str, Any], mode: str) -> tuple[
         runtime_targets = model.get("runtime_targets", [])
         target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
         tasks.append(ScanTask(task_id="browser-performance", stage="PERFORMANCE", adapter="lighthouse", tool="lighthouse", target=target, depends_on=["browser-functional"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="MEDIUM"))
+    if mode == "FULL" and model.get("security_tests"):
+        runtime_targets = model.get("runtime_targets", [])
+        target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
+        tasks.append(ScanTask(task_id="runtime-zap", stage="DAST", adapter="zap", tool="zap-baseline.py", target=target, depends_on=["preflight"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="HIGH"))
+    if mode == "FULL" and model.get("load_tests"):
+        runtime_targets = model.get("runtime_targets", [])
+        target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
+        load_tool = "jmeter" if any(item["value"] == "JMeter plan" for item in model["load_tests"]) else "k6"
+        task_id = "runtime-jmeter" if load_tool == "jmeter" else "runtime-k6"
+        tasks.append(ScanTask(task_id=task_id, stage="LOAD_TESTING", adapter=load_tool, tool=load_tool, target=target, depends_on=["preflight"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="HIGH"))
     return tools, tasks

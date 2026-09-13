@@ -49,6 +49,8 @@ class ProjectModel(BaseModel):
     browser_tests: list[Evidence] = Field(default_factory=list)
     accessibility_tests: list[Evidence] = Field(default_factory=list)
     performance_tests: list[Evidence] = Field(default_factory=list)
+    security_tests: list[Evidence] = Field(default_factory=list)
+    load_tests: list[Evidence] = Field(default_factory=list)
     runtime_targets: list[dict[str, Any]] = Field(default_factory=list)
     database_indicators: list[Evidence] = Field(default_factory=list)
     test_suites: list[Evidence] = Field(default_factory=list)

@@ -93,3 +93,17 @@ def test_runtime_health_reports_unreachable_loopback_target(tmp_path):
         health = client.get(f"/api/projects/{project['id']}/runtime-target/health")
         assert health.status_code == 200
         assert health.json()["status"] == "UNREACHABLE"
+
+
+def test_security_and_load_artifacts_are_planned_with_confirmation(tmp_path):
+    (tmp_path / "zap.yaml").write_text("env:\n  contexts: []\n")
+    (tmp_path / "smoke.k6.js").write_text("export default function () {}")
+    with TestClient(app) as client:
+        project = client.post("/api/projects/discover", json={"root_path": str(tmp_path)}).json()
+        assert project["model"]["security_tests"]
+        assert project["model"]["load_tests"]
+        plan = client.get(f"/api/projects/{project['id']}/scan-plan?mode=FULL").json()
+        zap = next(task for task in plan["tasks"] if task["task_id"] == "runtime-zap")
+        load = next(task for task in plan["tasks"] if task["task_id"] == "runtime-k6")
+        assert zap["requires_user_confirmation"] is True
+        assert load["requires_user_confirmation"] is True

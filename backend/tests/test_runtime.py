@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services import runtime
 from app.services.runtime import _command_for_task
 
 
@@ -27,6 +28,28 @@ async def test_runtime_command_is_not_shell_parsed(tmp_path):
     command = _command_for_task({"task_id": "python-tests", "tool": "pytest"}, tmp_path)
     assert command == ["pytest", "-q"]
     assert all(";" not in part and "|" not in part for part in command)
+
+
+def test_optional_security_and_load_commands_are_fixed_vectors(tmp_path, monkeypatch):
+    (tmp_path / "smoke.k6.js").write_text("export default function () {}")
+    (tmp_path / "plan.jmx").write_text("<jmeterTestPlan/>")
+    monkeypatch.setattr(runtime.shutil, "which", lambda executable: executable)
+    zap = _command_for_task(
+        {"task_id": "runtime-zap", "tool": "zap-baseline.py", "target": "http://127.0.0.1:8000"},
+        tmp_path,
+    )
+    k6 = _command_for_task(
+        {"task_id": "runtime-k6", "tool": "k6", "target": "http://127.0.0.1:8000"},
+        tmp_path,
+    )
+    jmeter = _command_for_task(
+        {"task_id": "runtime-jmeter", "tool": "jmeter", "target": "http://127.0.0.1:8000"},
+        tmp_path,
+    )
+    assert zap == ["zap-baseline.py", "-t", "http://127.0.0.1:8000", "-J", "-"]
+    assert k6 == ["k6", "run", "--vus", "1", "--duration", "10s", str(tmp_path / "smoke.k6.js")]
+    assert jmeter[:5] == ["jmeter", "-n", "-t", str(tmp_path / "plan.jmx"), "-JbaseUrl=http://127.0.0.1:8000"]
+    assert all(";" not in part and "|" not in part for part in (zap + k6 + jmeter))
 
 
 def test_scan_endpoint_creates_session(tmp_path):
