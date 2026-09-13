@@ -144,6 +144,7 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
         select(Baseline).where(Baseline.project_id == project_id).order_by(Baseline.created_at.desc())
     )).scalars().first()
     baseline_fingerprints = set(baseline.fingerprints or []) if baseline else set()
+    current_fingerprints = {finding.fingerprint for finding in findings}
     response_findings = []
     for finding in findings:
         response = FindingResponse.model_validate(finding, from_attributes=True)
@@ -159,6 +160,7 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
         failed_tasks=sum(1 for result in (scan.results or []) if result.get("status") in {"FAILED", "TIMED_OUT", "TOOL_MISSING"}),
         new_findings=sum(1 for finding in response_findings if finding.status == "NEW"),
         existing_findings=sum(1 for finding in response_findings if finding.status == "EXISTING"),
+        resolved_findings=len(baseline_fingerprints - current_fingerprints),
         dependency_count=dependency_count,
         api_spec_count=api_spec_count,
         api_collection_count=postman_count,
@@ -169,7 +171,7 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
 @router.get("/scans/{scan_id}/report/export")
 async def export_scan_report(
     scan_id: str,
-    format: str = Query("json", pattern="^(json|markdown)$"),
+    format: str = Query("json", pattern="^(json|markdown|html)$"),
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     report = await scan_report(scan_id, db)
@@ -179,6 +181,27 @@ async def export_scan_report(
         return Response(body, media_type="application/json", headers={
             "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.json"',
         })
+    if format == "html":
+        from html import escape
+        finding_rows = "".join(
+            f"<tr><td>{escape(finding.severity or '')}</td>"
+            f"<td>{escape(finding.status)}</td><td>{escape(finding.title)}</td>"
+            f"<td>{escape(finding.message)}</td></tr>"
+            for finding in report.findings
+        ) or '<tr><td colspan="4">No normalized findings.</td></tr>'
+        body = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>QSScope Scan Report</title>
+<style>body{{font:16px system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#172033}}
+table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #d5dbe5;padding:.6rem;text-align:left}}
+th{{background:#eef2f7}}</style></head><body>
+<h1>QSScope Scan Report</h1><p>Scan: <code>{escape(report.scan_id)}</code></p>
+<p>Status: <strong>{escape(report.status)}</strong> · Score: <strong>{report.score}/100</strong></p>
+<p>New: {report.new_findings} · Existing: {report.existing_findings} · Resolved: {report.resolved_findings}</p>
+<h2>Findings</h2><table><thead><tr><th>Severity</th><th>Status</th><th>Title</th><th>Message</th></tr></thead>
+<tbody>{finding_rows}</tbody></table></body></html>"""
+        return Response(body, media_type="text/html", headers={
+            "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.html"',
+        })
     lines = [
         "# QSScope Scan Report", "",
         f"- Scan: `{report.scan_id}`",
@@ -186,6 +209,7 @@ async def export_scan_report(
         f"- Score: **{report.score}/100**",
         f"- New findings: **{report.new_findings}**",
         f"- Existing findings: **{report.existing_findings}**", "",
+        f"- Resolved findings since baseline: **{report.resolved_findings}**", "",
         f"- Dependencies inventoried: **{report.dependency_count}**", "",
         f"- API specs: **{report.api_spec_count}**",
         f"- Postman collections: **{report.api_collection_count}**",

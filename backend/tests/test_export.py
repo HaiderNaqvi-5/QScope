@@ -19,4 +19,8 @@ def test_report_exports_json_and_markdown(tmp_path):
         markdown = client.get(f"/api/scans/{scan['id']}/report/export?format=markdown")
         assert markdown.status_code == 200
         assert "# QSScope Scan Report" in markdown.text
+        html = client.get(f"/api/scans/{scan['id']}/report/export?format=html")
+        assert html.status_code == 200
+        assert "<!doctype html>" in html.text
+        assert html.headers["content-type"].startswith("text/html")
         assert client.get(f"/api/projects/{project['id']}/scans").status_code == 200

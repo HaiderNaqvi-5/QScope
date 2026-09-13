@@ -18,3 +18,4 @@ def test_report_can_create_baseline(tmp_path):
         baseline = client.post(f"/api/scans/{scan['id']}/baseline")
         assert baseline.status_code == 200
         assert baseline.json()["existing_findings"] == 0
+        assert baseline.json()["resolved_findings"] == 0
