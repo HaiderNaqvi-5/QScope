@@ -92,7 +92,7 @@ pnpm run test
 ## Status
 
 The core local-first workflow is implemented and tested: discovery, preflight, scan planning,
-safe local execution, localhost API targets, OpenAPI/GraphQL Schemathesis readiness, Postman/Newman
+safe local execution, localhost API targets with health checks, OpenAPI/GraphQL Schemathesis readiness, Postman/Newman
 collection readiness, Playwright browser-test readiness, lockfile and pyproject dependency
 inventory, deterministic CycloneDX SBOM export, structured adapters, findings, baselines,
 scoring, accessibility/performance readiness and evidence normalization, API test evidence

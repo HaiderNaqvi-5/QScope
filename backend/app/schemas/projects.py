@@ -19,6 +19,14 @@ class RuntimeTarget(BaseModel):
         return f"{self.scheme}://{host}:{self.port}"
 
 
+class RuntimeHealthResponse(BaseModel):
+    status: Literal["HEALTHY", "UNHEALTHY", "UNREACHABLE", "NOT_CONFIGURED"]
+    target: str | None = None
+    status_code: int | None = None
+    latency_ms: int | None = None
+    error: str | None = None
+
+
 class Evidence(BaseModel):
     value: str
     evidence: list[str] = Field(default_factory=list)

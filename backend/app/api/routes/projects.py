@@ -1,16 +1,25 @@
 """Project discovery and scan-plan endpoints."""
 from pathlib import Path
+import time
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
+import httpx
 import json
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
 from app.models import Project
-from app.schemas.projects import ProjectDiscoverRequest, ProjectResponse, ProjectModel, RuntimeTarget, ScanPlanResponse
+from app.schemas.projects import (
+    ProjectDiscoverRequest,
+    ProjectResponse,
+    ProjectModel,
+    RuntimeHealthResponse,
+    RuntimeTarget,
+    ScanPlanResponse,
+)
 from app.services.discovery import discover_project
 from app.services.preflight import build_scan_plan
 
@@ -81,6 +90,40 @@ async def configure_runtime_target(
     await db.commit()
     await db.refresh(project)
     return _response(project)
+
+
+@router.get("/projects/{project_id}/runtime-target/health", response_model=RuntimeHealthResponse)
+async def runtime_target_health(
+    project_id: str,
+    db: AsyncSession = Depends(get_db_session),
+) -> RuntimeHealthResponse:
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    targets = (project.project_model or {}).get("runtime_targets", [])
+    if not targets or not targets[0].get("base_url"):
+        return RuntimeHealthResponse(status="NOT_CONFIGURED")
+    target = str(targets[0]["base_url"])
+    started = time.monotonic()
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(3.0, connect=1.0),
+            follow_redirects=False,
+        ) as client:
+            response = await client.get(target)
+    except (httpx.TimeoutException, httpx.NetworkError) as exc:
+        return RuntimeHealthResponse(
+            status="UNREACHABLE",
+            target=target,
+            latency_ms=int((time.monotonic() - started) * 1000),
+            error=exc.__class__.__name__,
+        )
+    return RuntimeHealthResponse(
+        status="HEALTHY" if response.is_success or response.is_redirect else "UNHEALTHY",
+        target=target,
+        status_code=response.status_code,
+        latency_ms=int((time.monotonic() - started) * 1000),
+    )
 
 
 @router.get("/projects/{project_id}/dependencies/export")

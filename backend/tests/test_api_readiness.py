@@ -81,3 +81,15 @@ def test_graphql_schema_is_detected_and_planned(tmp_path):
         plan = client.get(f"/api/projects/{project['id']}/scan-plan?mode=FULL").json()
         task = next(task for task in plan["tasks"] if task["task_id"] == "runtime-graphql")
         assert task["requires_user_confirmation"] is True
+
+
+def test_runtime_health_reports_unreachable_loopback_target(tmp_path):
+    with TestClient(app) as client:
+        project = client.post("/api/projects/discover", json={"root_path": str(tmp_path)}).json()
+        client.post(
+            f"/api/projects/{project['id']}/runtime-target",
+            json={"host": "127.0.0.1", "port": 1, "scheme": "http"},
+        )
+        health = client.get(f"/api/projects/{project['id']}/runtime-target/health")
+        assert health.status_code == 200
+        assert health.json()["status"] == "UNREACHABLE"
