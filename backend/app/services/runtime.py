@@ -37,8 +37,8 @@ def _command_for_task(task: dict[str, Any], root: Path) -> list[str] | None:
         return ["osv-scanner", "scan", "source", "-r", str(root)]
     if tool == "schemathesis" and shutil.which("schemathesis"):
         specs = sorted(root.glob("openapi.*")) + sorted(root.glob("swagger.*"))
-        if specs:
-            return ["schemathesis", "run", str(specs[0])]
+        if specs and task.get("target", "unconfigured") != "unconfigured":
+            return ["schemathesis", "run", str(specs[0]), "--base-url", task["target"]]
     # Security tools are never guessed or invoked with unbounded arguments.
     return None
 
@@ -69,7 +69,9 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
             await _emit(session_id, {"status": "RUNNING", "task_id": task["task_id"], "message": f"Running {task['stage']}"})
             command = _command_for_task(task, Path(project_root))
             task_started = time.monotonic()
-            if command is None:
+            if task.get("requires_runtime") and task.get("target") == "unconfigured":
+                result = {"task_id": task["task_id"], "status": "SKIPPED_USER", "output": "Runtime target is not configured; confirm a localhost port before API testing."}
+            elif command is None:
                 result = {"task_id": task["task_id"], "status": "TOOL_MISSING" if task["tool"] in {"semgrep", "gitleaks", "osv-scanner", "schemathesis"} else "PASSED", "output": "Tool unavailable or no executable configured for this stage."}
             else:
                 process = await asyncio.create_subprocess_exec(

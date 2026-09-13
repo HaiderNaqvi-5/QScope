@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
 from app.models import Project
-from app.schemas.projects import ProjectDiscoverRequest, ProjectResponse, ProjectModel, ScanPlanResponse
+from app.schemas.projects import ProjectDiscoverRequest, ProjectResponse, ProjectModel, RuntimeTarget, ScanPlanResponse
 from app.services.discovery import discover_project
 from app.services.preflight import build_scan_plan
 
@@ -57,3 +57,25 @@ async def scan_plan(
         raise HTTPException(status_code=404, detail="Project not found")
     tools, tasks = build_scan_plan(project.id, project.project_model, mode)
     return ScanPlanResponse(project_id=project.id, mode=mode, tools=tools, tasks=tasks)
+
+
+@router.post("/projects/{project_id}/runtime-target", response_model=ProjectResponse)
+async def configure_runtime_target(
+    project_id: str,
+    target: RuntimeTarget,
+    db: AsyncSession = Depends(get_db_session),
+) -> ProjectResponse:
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    model = dict(project.project_model or {})
+    model["runtime_targets"] = [{
+        "host": target.host,
+        "port": target.port,
+        "scheme": target.scheme,
+        "base_url": target.base_url,
+    }]
+    project.project_model = model
+    await db.commit()
+    await db.refresh(project)
+    return _response(project)

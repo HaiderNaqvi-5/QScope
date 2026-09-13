@@ -3,10 +3,12 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+from app.schemas.projects import RuntimeTarget
 
 
 class ScanStartRequest(BaseModel):
     mode: Literal["QUICK", "STANDARD", "FULL"] = "STANDARD"
+    runtime_target: RuntimeTarget | None = None
 
 
 class ScanResult(BaseModel):

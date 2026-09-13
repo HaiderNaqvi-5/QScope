@@ -34,7 +34,16 @@ async def start_project_scan(project_id: str, request: ScanStartRequest, db: Asy
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    tools, tasks = build_scan_plan(project.id, ProjectModel.model_validate(project.project_model).model_dump(), request.mode)
+    model = ProjectModel.model_validate(project.project_model).model_dump()
+    if request.runtime_target:
+        model["runtime_targets"] = [{
+            "host": request.runtime_target.host,
+            "port": request.runtime_target.port,
+            "scheme": request.runtime_target.scheme,
+            "base_url": request.runtime_target.base_url,
+        }]
+        project.project_model = model
+    tools, tasks = build_scan_plan(project.id, model, request.mode)
     del tools
     plan = [task.model_dump() for task in tasks]
     approval_required = any(task.get("requires_user_confirmation") for task in plan)
@@ -122,9 +131,13 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
     project = await db.get(Project, project_id)
     dependency_count = len((project.project_model or {}).get("dependencies", [])) if project else 0
     api_spec_count = len((project.project_model or {}).get("api_specs", [])) if project else 0
-    api_testing_status = "READY" if api_spec_count and any(
+    runtime_target_configured = any(
+        task.get("task_id") == "runtime-api" and task.get("target") != "unconfigured"
+        for task in (scan.plan or [])
+    )
+    api_testing_status = "READY" if api_spec_count and runtime_target_configured and any(
         task.get("task_id") == "runtime-api" for task in (scan.plan or [])
-    ) else ("SPEC_FOUND_TOOL_MISSING" if api_spec_count else "NOT_CONFIGURED")
+    ) else ("SPEC_FOUND_TARGET_REQUIRED" if api_spec_count else "NOT_CONFIGURED")
     baseline = (await db.execute(
         select(Baseline).where(Baseline.project_id == project_id).order_by(Baseline.created_at.desc())
     )).scalars().first()

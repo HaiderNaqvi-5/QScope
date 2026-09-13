@@ -14,6 +14,12 @@ def test_runtime_whitelists_known_commands(tmp_path):
         "python", "-m", "compileall", "-q", "."
     ]
     assert _command_for_task({"task_id": "arbitrary", "tool": "sh"}, tmp_path) is None
+    api_command = _command_for_task(
+        {"task_id": "runtime-api", "tool": "schemathesis", "target": "http://127.0.0.1:8000"},
+        tmp_path,
+    )
+    if api_command is not None:
+        assert api_command[-2:] == ["--base-url", "http://127.0.0.1:8000"]
 
 
 @pytest.mark.asyncio

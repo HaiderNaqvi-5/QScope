@@ -8,6 +8,17 @@ class ProjectDiscoverRequest(BaseModel):
     root_path: str = Field(..., min_length=1, description="Local project directory")
 
 
+class RuntimeTarget(BaseModel):
+    host: Literal["127.0.0.1", "localhost", "::1"] = "127.0.0.1"
+    port: int = Field(..., ge=1, le=65535)
+    scheme: Literal["http", "https"] = "http"
+
+    @property
+    def base_url(self) -> str:
+        host = f"[{self.host}]" if self.host == "::1" else self.host
+        return f"{self.scheme}://{host}:{self.port}"
+
+
 class Evidence(BaseModel):
     value: str
     evidence: list[str] = Field(default_factory=list)
@@ -24,7 +35,7 @@ class ProjectModel(BaseModel):
     frontend_targets: list[Evidence] = Field(default_factory=list)
     backend_targets: list[Evidence] = Field(default_factory=list)
     api_specs: list[Evidence] = Field(default_factory=list)
-    runtime_targets: list[dict[str, str]] = Field(default_factory=list)
+    runtime_targets: list[dict[str, Any]] = Field(default_factory=list)
     database_indicators: list[Evidence] = Field(default_factory=list)
     test_suites: list[Evidence] = Field(default_factory=list)
     build_commands: list[str] = Field(default_factory=list)

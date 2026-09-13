@@ -73,5 +73,7 @@ def build_scan_plan(project_id: str, model: dict[str, Any], mode: str) -> tuple[
     if any(tool.id == "osv-scanner" and tool.available for tool in tools):
         tasks.append(ScanTask(task_id="dependency-audit", stage="DEPENDENCY_VULNERABILITIES", adapter="universal", tool="osv-scanner", target=".", depends_on=["dependency-inventory"]))
     if mode == "FULL" and model.get("api_specs"):
-        tasks.append(ScanTask(task_id="runtime-api", stage="API_TESTING", adapter="universal", tool="schemathesis", target=".", depends_on=["preflight"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="HIGH"))
+        runtime_targets = model.get("runtime_targets", [])
+        target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
+        tasks.append(ScanTask(task_id="runtime-api", stage="API_TESTING", adapter="universal", tool="schemathesis", target=target, depends_on=["preflight"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="HIGH"))
     return tools, tasks
