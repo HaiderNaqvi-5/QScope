@@ -56,6 +56,21 @@ async def init_db() -> None:
         await conn.exec_driver_sql("PRAGMA journal_mode=WAL")
         await conn.exec_driver_sql("PRAGMA synchronous=NORMAL")
         await conn.run_sync(Base.metadata.create_all)
+        # Keep existing local installations forward-compatible between releases.
+        columns = {
+            row[1] for row in (await conn.exec_driver_sql("PRAGMA table_info(scan_sessions)")).fetchall()
+        }
+        additions = {
+            "mode": "VARCHAR(20) DEFAULT 'STANDARD'",
+            "plan": "JSON DEFAULT '[]'",
+            "results": "JSON DEFAULT '[]'",
+            "error": "TEXT",
+            "started_at": "DATETIME",
+            "completed_at": "DATETIME",
+        }
+        for name, definition in additions.items():
+            if name not in columns:
+                await conn.exec_driver_sql(f"ALTER TABLE scan_sessions ADD COLUMN {name} {definition}")
 
 
 async def close_db() -> None:

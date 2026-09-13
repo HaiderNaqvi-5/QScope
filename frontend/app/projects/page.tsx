@@ -14,7 +14,8 @@ type Project = {
     files_scanned: number;
   };
 };
-type Plan = { mode: string; tools: { display_name: string; available: boolean; version?: string }[]; tasks: { task_id: string; stage: string; tool: string }[] };
+type Plan = { project_id: string; mode: string; tools: { display_name: string; available: boolean; version?: string }[]; tasks: { task_id: string; stage: string; tool: string }[] };
+type Scan = { id: string; status: string; results: { task_id: string; status: string; output: string }[] };
 
 const API = 'http://127.0.0.1:8000/api';
 
@@ -22,6 +23,7 @@ export default function ProjectsPage() {
   const [path, setPath] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<Plan | null>(null);
+  const [scan, setScan] = useState<Scan | null>(null);
   const [error, setError] = useState('');
 
   const loadProjects = () => fetch(`${API}/projects`).then((res) => res.json()).then(setProjects).catch(() => setError('Backend is offline.'));
@@ -42,6 +44,21 @@ export default function ProjectsPage() {
     const response = await fetch(`${API}/projects/${id}/scan-plan`);
     if (!response.ok) { setError('Could not build scan plan.'); return; }
     setSelected(await response.json());
+  }
+
+  async function startScan() {
+    if (!selected) return;
+    const response = await fetch(`${API}/projects/${selected.project_id}/scans`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: selected.mode }),
+    });
+    if (!response.ok) { setError('Could not start scan.'); return; }
+    const initial: Scan = await response.json();
+    setScan(initial);
+    const timer = window.setInterval(async () => {
+      const status = await fetch(`${API}/scans/${initial.id}`).then((res) => res.json()) as Scan;
+      setScan(status);
+      if (['COMPLETED', 'FAILED', 'CANCELLED', 'ERROR'].includes(status.status)) window.clearInterval(timer);
+    }, 1000);
   }
 
   return (
@@ -76,6 +93,11 @@ export default function ProjectsPage() {
             {selected.tools.map((tool) => <div key={tool.display_name} className="flex justify-between rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><span>{tool.display_name}</span><span className={tool.available ? 'text-green-600' : 'text-amber-600'}>{tool.available ? tool.version ?? 'available' : 'missing'}</span></div>)}
           </div>
           <ol className="mt-5 space-y-2">{selected.tasks.map((task) => <li key={task.task_id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700"><b>{task.stage}</b> · {task.tool}</li>)}</ol>
+          <button onClick={startScan} className="mt-5 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700">Run scan</button>
+        </section>}
+        {scan && <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Scan {scan.status.toLowerCase()}</h2><span className="text-sm text-slate-500">{scan.id.slice(0, 8)}</span></div>
+          <ol className="mt-4 space-y-2">{scan.results.map((result) => <li key={result.task_id} className="rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><b>{result.task_id}</b> · {result.status}</li>)}</ol>
         </section>}
       </div>
     </main>

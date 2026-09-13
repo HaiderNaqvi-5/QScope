@@ -1,5 +1,5 @@
 """SQLAlchemy models for all entities."""
-from sqlalchemy import Column, String, DateTime, JSON
+from sqlalchemy import Column, String, DateTime, JSON, Text
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -21,6 +21,12 @@ class ScanSession(Base):
     id = Column(String(36), primary_key=True)
     project_id = Column(String(36), nullable=False)
     status = Column(String(50), default="pending")
+    mode = Column(String(20), default="STANDARD")
+    plan = Column(JSON, nullable=False, default=list)
+    results = Column(JSON, nullable=False, default=list)
+    error = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
 

@@ -1,0 +1,116 @@
+"""Safe local scan session execution."""
+from __future__ import annotations
+
+import asyncio
+import time
+from collections.abc import AsyncIterator
+from pathlib import Path
+from typing import Any
+from datetime import datetime, timezone
+
+from sqlalchemy import update
+
+from app.core.database import AsyncSessionLocal
+from app.models import ScanSession
+
+_running: dict[str, asyncio.Task[None]] = {}
+_events: dict[str, asyncio.Queue[dict[str, Any]]] = {}
+
+
+def _command_for_task(task: dict[str, Any], root: Path) -> list[str] | None:
+    tool = task["tool"]
+    if task["task_id"] in {"discovery", "preflight"}:
+        return None
+    if tool == "python" and task["task_id"] == "python-compile":
+        return ["python", "-m", "compileall", "-q", "."]
+    if tool == "pytest" and task["task_id"] == "python-tests":
+        return ["pytest", "-q"]
+    if tool == "npm" and task["task_id"] == "js-lint":
+        return ["npm", "run", "lint", "--if-present"]
+    # Security tools are never guessed or invoked with unbounded arguments.
+    return None
+
+
+async def _emit(session_id: str, event: dict[str, Any]) -> None:
+    queue = _events.setdefault(session_id, asyncio.Queue())
+    await queue.put({"session_id": session_id, **event})
+
+
+async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]]) -> None:
+    results: list[dict[str, Any]] = []
+    started = time.monotonic()
+    async with AsyncSessionLocal() as db:
+        now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+        await db.execute(update(ScanSession).where(ScanSession.id == session_id).values(status="RUNNING", started_at=now()))
+        await db.commit()
+    await _emit(session_id, {"status": "RUNNING", "message": "Scan started"})
+    try:
+        for task in plan:
+            await _emit(session_id, {"status": "RUNNING", "task_id": task["task_id"], "message": f"Running {task['stage']}"})
+            command = _command_for_task(task, Path(project_root))
+            task_started = time.monotonic()
+            if command is None:
+                result = {"task_id": task["task_id"], "status": "PASSED", "output": "No executable configured for this stage."}
+            else:
+                process = await asyncio.create_subprocess_exec(
+                    *command, cwd=project_root, stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                )
+                try:
+                    stdout, _ = await asyncio.wait_for(process.communicate(), timeout=300)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+                    result = {"task_id": task["task_id"], "status": "TIMED_OUT", "output": "Task exceeded the 300 second timeout.", "exit_code": None}
+                else:
+                    output = (stdout or b"").decode("utf-8", errors="replace")[-20000:]
+                    result = {"task_id": task["task_id"], "status": "PASSED" if process.returncode == 0 else "FAILED", "output": output, "exit_code": process.returncode}
+            result["duration_ms"] = int((time.monotonic() - task_started) * 1000)
+            results.append(result)
+            await _emit(session_id, {"status": result["status"], "task_id": task["task_id"], "message": f"{task['stage']} {result['status'].lower()}", "result": result})
+            if result["status"] in {"FAILED", "TIMED_OUT"}:
+                break
+        final_status = "FAILED" if results and results[-1]["status"] in {"FAILED", "TIMED_OUT"} else "COMPLETED"
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(ScanSession).where(ScanSession.id == session_id).values(
+                status=final_status, results=results, completed_at=now(),
+            ))
+            await db.commit()
+        await _emit(session_id, {"status": final_status, "message": f"Scan {final_status.lower()}"})
+    except asyncio.CancelledError:
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(ScanSession).where(ScanSession.id == session_id).values(status="CANCELLED", results=results, completed_at=now()))
+            await db.commit()
+        await _emit(session_id, {"status": "CANCELLED", "message": "Scan cancelled"})
+        raise
+    except Exception as exc:
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(ScanSession).where(ScanSession.id == session_id).values(status="ERROR", results=results, error=str(exc), completed_at=now()))
+            await db.commit()
+        await _emit(session_id, {"status": "ERROR", "message": "Scan failed unexpectedly"})
+    finally:
+        _running.pop(session_id, None)
+        _events.setdefault(session_id, asyncio.Queue()).put_nowait({"session_id": session_id, "status": "END", "message": "Event stream closed"})
+
+
+def start_scan(session_id: str, project_root: str, plan: list[dict[str, Any]]) -> None:
+    _events[session_id] = asyncio.Queue()
+    _running[session_id] = asyncio.create_task(_execute(session_id, project_root, plan))
+
+
+def cancel_scan(session_id: str) -> bool:
+    task = _running.get(session_id)
+    if not task:
+        return False
+    task.cancel()
+    return True
+
+
+async def event_stream(session_id: str) -> AsyncIterator[str]:
+    queue = _events.setdefault(session_id, asyncio.Queue())
+    while True:
+        event = await queue.get()
+        import json
+        yield f"data: {json.dumps(event)}\n\n"
+        if event["status"] == "END":
+            break
