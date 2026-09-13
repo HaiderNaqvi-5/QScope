@@ -35,7 +35,7 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
         "languages": [], "frameworks": [], "package_managers": [],
         "dependencies": [],
         "workspace_roots": [], "services": [], "frontend_targets": [],
-        "backend_targets": [], "api_specs": [], "database_indicators": [],
+        "backend_targets": [], "api_specs": [], "runtime_targets": [], "database_indicators": [],
         "test_suites": [], "build_commands": [], "run_commands": [],
         "docker": {}, "git": {}, "confidence": {}, "files_scanned": 0,
     }
@@ -139,6 +139,8 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
             model["api_specs"].append(_evidence("OpenAPI", has(filename)))
     if any(name.startswith("Dockerfile") for name in (Path(p).name for p in manifests)):
         model["docker"] = {"detected": True, "evidence": [p for p in manifests if Path(p).name.startswith("Dockerfile")]}
+    for command in model["run_commands"]:
+        model["runtime_targets"].append({"command": command, "host": "127.0.0.1", "port": "unconfigured"})
     model["git"] = {"detected": (root / ".git").is_dir()}
     model["confidence"] = {
         "languages": min(1.0, len(model["languages"]) / 3),

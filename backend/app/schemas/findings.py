@@ -27,3 +27,5 @@ class ScanReportResponse(BaseModel):
     new_findings: int = 0
     existing_findings: int = 0
     dependency_count: int = 0
+    api_spec_count: int = 0
+    api_testing_status: str = "NOT_CONFIGURED"

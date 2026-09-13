@@ -24,6 +24,7 @@ class ProjectModel(BaseModel):
     frontend_targets: list[Evidence] = Field(default_factory=list)
     backend_targets: list[Evidence] = Field(default_factory=list)
     api_specs: list[Evidence] = Field(default_factory=list)
+    runtime_targets: list[dict[str, str]] = Field(default_factory=list)
     database_indicators: list[Evidence] = Field(default_factory=list)
     test_suites: list[Evidence] = Field(default_factory=list)
     build_commands: list[str] = Field(default_factory=list)

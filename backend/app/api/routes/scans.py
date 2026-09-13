@@ -91,6 +91,10 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
     project_id = scan.project_id
     project = await db.get(Project, project_id)
     dependency_count = len((project.project_model or {}).get("dependencies", [])) if project else 0
+    api_spec_count = len((project.project_model or {}).get("api_specs", [])) if project else 0
+    api_testing_status = "READY" if api_spec_count and any(
+        task.get("task_id") == "runtime-api" for task in (scan.plan or [])
+    ) else ("SPEC_FOUND_TOOL_MISSING" if api_spec_count else "NOT_CONFIGURED")
     baseline = (await db.execute(
         select(Baseline).where(Baseline.project_id == project_id).order_by(Baseline.created_at.desc())
     )).scalars().first()
@@ -109,6 +113,8 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
         new_findings=sum(1 for finding in response_findings if finding.status == "NEW"),
         existing_findings=sum(1 for finding in response_findings if finding.status == "EXISTING"),
         dependency_count=dependency_count,
+        api_spec_count=api_spec_count,
+        api_testing_status=api_testing_status,
     )
 
 
@@ -133,6 +139,8 @@ async def export_scan_report(
         f"- New findings: **{report.new_findings}**",
         f"- Existing findings: **{report.existing_findings}**", "",
         f"- Dependencies inventoried: **{report.dependency_count}**", "",
+        f"- API specs: **{report.api_spec_count}**",
+        f"- API testing readiness: **{report.api_testing_status}**", "",
         "## Findings",
     ]
     if report.findings:
