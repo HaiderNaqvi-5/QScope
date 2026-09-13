@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
-from app.models import Finding, Project, ScanSession
+from app.models import Baseline, Finding, Project, ScanSession
 from app.schemas.projects import ProjectModel
 from app.schemas.scans import ScanSessionResponse, ScanStartRequest
 from app.services.preflight import build_scan_plan
@@ -78,11 +78,33 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
     if not scan:
         raise HTTPException(status_code=404, detail="Scan session not found")
     findings = (await db.execute(select(Finding).where(Finding.scan_id == scan_id))).scalars().all()
-    response_findings = [FindingResponse.model_validate(finding, from_attributes=True) for finding in findings]
+    project_id = scan.project_id
+    baseline = (await db.execute(
+        select(Baseline).where(Baseline.project_id == project_id).order_by(Baseline.created_at.desc())
+    )).scalars().first()
+    baseline_fingerprints = set(baseline.fingerprints or []) if baseline else set()
+    response_findings = []
+    for finding in findings:
+        response = FindingResponse.model_validate(finding, from_attributes=True)
+        response.status = "EXISTING" if finding.fingerprint in baseline_fingerprints else "NEW"
+        response_findings.append(response)
     return ScanReportResponse(
         scan_id=scan_id, status=scan.status or "PENDING",
         score=score_findings([finding.model_dump() for finding in response_findings]),
         findings=response_findings,
         task_count=len(scan.results or []),
-        failed_tasks=sum(1 for result in (scan.results or []) if result.get("status") in {"FAILED", "TIMED_OUT"}),
+        failed_tasks=sum(1 for result in (scan.results or []) if result.get("status") in {"FAILED", "TIMED_OUT", "TOOL_MISSING"}),
+        new_findings=sum(1 for finding in response_findings if finding.status == "NEW"),
+        existing_findings=sum(1 for finding in response_findings if finding.status == "EXISTING"),
     )
+
+
+@router.post("/scans/{scan_id}/baseline", response_model=ScanReportResponse)
+async def create_baseline(scan_id: str, db: AsyncSession = Depends(get_db_session)) -> ScanReportResponse:
+    scan = await db.get(ScanSession, scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan session not found")
+    findings = (await db.execute(select(Finding).where(Finding.scan_id == scan_id))).scalars().all()
+    db.add(Baseline(id=str(uuid4()), project_id=scan.project_id, fingerprints=[finding.fingerprint for finding in findings]))
+    await db.commit()
+    return await scan_report(scan_id, db)

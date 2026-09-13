@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from typing import Any
 
@@ -39,3 +40,48 @@ def normalize_result(scan_id: str, result: dict[str, Any]) -> dict[str, Any] | N
 def score_findings(findings: list[dict[str, Any]]) -> int:
     deductions = {"CRITICAL": 35, "HIGH": 20, "MEDIUM": 10, "LOW": 3}
     return max(0, 100 - sum(deductions.get(item.get("severity", "LOW"), 0) for item in findings))
+
+
+def normalize_tool_output(scan_id: str, result: dict[str, Any]) -> list[dict[str, Any]]:
+    """Normalize Semgrep or Gitleaks JSON without persisting secret content."""
+    tool = result.get("tool")
+    if tool not in {"semgrep", "gitleaks"}:
+        finding = normalize_result(scan_id, result)
+        return [finding] if finding else []
+    try:
+        payload = json.loads(str(result.get("output", "")) or "[]")
+    except json.JSONDecodeError:
+        return []
+    records = payload.get("results", []) if isinstance(payload, dict) else payload
+    normalized = []
+    for record in records if isinstance(records, list) else []:
+        if tool == "semgrep":
+            check = record.get("check_id", "semgrep")
+            message = record.get("extra", {}).get("message", "Semgrep finding")[:1000]
+            path = record.get("path")
+            line = str(record.get("start", {}).get("line", "")) or None
+            severity = record.get("extra", {}).get("severity", "WARNING").upper()
+        else:
+            check = record.get("RuleID", "gitleaks")
+            message = f"Secret detected by {check}; value redacted."
+            path = record.get("File")
+            line = str(record.get("StartLine", "")) or None
+            severity = "HIGH"
+        severity = {"ERROR": "HIGH", "WARNING": "MEDIUM", "INFO": "LOW"}.get(severity, severity)
+        fingerprint = hashlib.sha256(f"{tool}|{check}|{path}|{line}".encode()).hexdigest()
+        normalized.append({
+            "id": hashlib.sha256(f"{scan_id}|{fingerprint}".encode()).hexdigest()[:36],
+            "scan_id": scan_id, "title": check, "severity": severity,
+            "tool": tool, "stage": result.get("stage", "STATIC_ANALYSIS"),
+            "file_path": path, "line": line, "message": message,
+            "fingerprint": fingerprint, "status": "OPEN",
+        })
+    return normalized
+
+
+def deduplicate_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep one finding per stable fingerprint while preserving source count."""
+    unique: dict[str, dict[str, Any]] = {}
+    for finding in findings:
+        unique.setdefault(finding["fingerprint"], finding)
+    return list(unique.values())

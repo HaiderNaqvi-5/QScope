@@ -86,6 +86,11 @@ async def init_db() -> None:
         for name, definition in finding_additions.items():
             if name not in finding_columns:
                 await conn.exec_driver_sql(f"ALTER TABLE findings ADD COLUMN {name} {definition}")
+        baseline_columns = {
+            row[1] for row in (await conn.exec_driver_sql("PRAGMA table_info(baselines)")).fetchall()
+        }
+        if "fingerprints" not in baseline_columns:
+            await conn.exec_driver_sql("ALTER TABLE baselines ADD COLUMN fingerprints JSON DEFAULT '[]'")
 
 
 async def close_db() -> None:

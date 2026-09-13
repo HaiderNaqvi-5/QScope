@@ -52,6 +52,7 @@ class Baseline(Base):
     __tablename__ = "baselines"
     id = Column(String(36), primary_key=True)
     project_id = Column(String(36), nullable=False)
+    fingerprints = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, server_default=func.now())
 
 

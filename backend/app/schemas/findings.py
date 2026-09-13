@@ -24,3 +24,5 @@ class ScanReportResponse(BaseModel):
     findings: list[FindingResponse]
     task_count: int
     failed_tasks: int
+    new_findings: int = 0
+    existing_findings: int = 0

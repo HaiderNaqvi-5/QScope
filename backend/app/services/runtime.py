@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -12,7 +13,7 @@ from sqlalchemy import update
 
 from app.core.database import AsyncSessionLocal
 from app.models import ScanSession
-from app.services.findings import normalize_result
+from app.services.findings import deduplicate_findings, normalize_tool_output
 
 _running: dict[str, asyncio.Task[None]] = {}
 _events: dict[str, asyncio.Queue[dict[str, Any]]] = {}
@@ -28,6 +29,10 @@ def _command_for_task(task: dict[str, Any], root: Path) -> list[str] | None:
         return ["pytest", "-q"]
     if tool == "npm" and task["task_id"] == "js-lint":
         return ["npm", "run", "lint", "--if-present"]
+    if tool == "semgrep" and shutil.which("semgrep"):
+        return ["semgrep", "--config", "auto", "--json", "--quiet", str(root)]
+    if tool == "gitleaks" and shutil.which("gitleaks"):
+        return ["gitleaks", "detect", "--source", str(root), "--report-format", "json", "--report-path", "-"]
     # Security tools are never guessed or invoked with unbounded arguments.
     return None
 
@@ -52,7 +57,7 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
             command = _command_for_task(task, Path(project_root))
             task_started = time.monotonic()
             if command is None:
-                result = {"task_id": task["task_id"], "status": "PASSED", "output": "No executable configured for this stage."}
+                result = {"task_id": task["task_id"], "status": "TOOL_MISSING" if task["tool"] in {"semgrep", "gitleaks"} else "PASSED", "output": "Tool unavailable or no executable configured for this stage."}
             else:
                 process = await asyncio.create_subprocess_exec(
                     *command, cwd=project_root, stdout=asyncio.subprocess.PIPE,
@@ -71,9 +76,7 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
             result["stage"] = task["stage"]
             result["tool"] = task["tool"]
             results.append(result)
-            finding = normalize_result(session_id, result)
-            if finding:
-                findings.append(finding)
+            findings.extend(normalize_tool_output(session_id, result))
             await _emit(session_id, {"status": result["status"], "task_id": task["task_id"], "message": f"{task['stage']} {result['status'].lower()}", "result": result})
             if result["status"] in {"FAILED", "TIMED_OUT"}:
                 break
@@ -83,7 +86,7 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
                 status=final_status, results=results, completed_at=now(),
             ))
             from app.models import Finding
-            db.add_all([Finding(**finding) for finding in findings])
+            db.add_all([Finding(**finding) for finding in deduplicate_findings(findings)])
             await db.commit()
         await _emit(session_id, {"status": final_status, "message": f"Scan {final_status.lower()}"})
     except asyncio.CancelledError:
