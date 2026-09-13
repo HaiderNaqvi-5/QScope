@@ -20,9 +20,9 @@ def normalize_result(scan_id: str, result: dict[str, Any]) -> dict[str, Any] | N
     line = match.group("line") if match else None
     message = output.splitlines()[-1][:1000] if output else f"Task {result.get('task_id')} did not complete successfully."
     task_id = str(result.get("task_id", "unknown"))
-    severity = "HIGH" if task_id in {"secrets", "sast", "runtime-api", "runtime-postman"} else "MEDIUM"
+    severity = "HIGH" if task_id in {"secrets", "sast", "runtime-api", "runtime-postman", "browser-functional"} else "MEDIUM"
     title = f"{task_id} {status.lower()}"
-    if task_id in {"runtime-api", "runtime-postman"}:
+    if task_id in {"runtime-api", "runtime-postman", "browser-functional"}:
         target = result.get("target") or "configured local target"
         title = f"API test failed at {target}"
         message = f"Runtime API testing failed against {target}. {message}"

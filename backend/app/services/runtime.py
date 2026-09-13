@@ -48,6 +48,8 @@ def _command_for_task(task: dict[str, Any], root: Path) -> list[str] | None:
                 command.extend(["--environment", str(environments[0])])
             command.extend(["--env-var", f"baseUrl={task['target']}", "--reporters", "cli"])
             return command
+    if tool == "playwright" and shutil.which("npx") and task.get("target", "unconfigured") != "unconfigured":
+        return ["npx", "--no-install", "playwright", "test", "--reporter=line"]
     # Security tools are never guessed or invoked with unbounded arguments.
     return None
 
@@ -82,7 +84,7 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
             if task.get("requires_runtime") and task.get("target") == "unconfigured":
                 result = {"task_id": task["task_id"], "status": "SKIPPED_USER", "output": "Runtime target is not configured; confirm a localhost port before API testing."}
             elif command is None:
-                result = {"task_id": task["task_id"], "status": "TOOL_MISSING" if task["tool"] in {"semgrep", "gitleaks", "osv-scanner", "schemathesis", "newman"} else "PASSED", "output": "Tool unavailable or no executable configured for this stage."}
+                result = {"task_id": task["task_id"], "status": "TOOL_MISSING" if task["tool"] in {"semgrep", "gitleaks", "osv-scanner", "schemathesis", "newman", "playwright"} else "PASSED", "output": "Tool unavailable or no executable configured for this stage."}
             else:
                 process = await asyncio.create_subprocess_exec(
                     *command, cwd=project_root, stdout=asyncio.subprocess.PIPE,

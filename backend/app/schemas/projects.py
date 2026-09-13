@@ -37,6 +37,7 @@ class ProjectModel(BaseModel):
     api_specs: list[Evidence] = Field(default_factory=list)
     postman_collections: list[Evidence] = Field(default_factory=list)
     postman_environments: list[Evidence] = Field(default_factory=list)
+    browser_tests: list[Evidence] = Field(default_factory=list)
     runtime_targets: list[dict[str, Any]] = Field(default_factory=list)
     database_indicators: list[Evidence] = Field(default_factory=list)
     test_suites: list[Evidence] = Field(default_factory=list)

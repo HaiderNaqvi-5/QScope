@@ -45,3 +45,16 @@ def test_postman_collection_is_detected_and_planned(tmp_path):
         task = next(task for task in plan["tasks"] if task["task_id"] == "runtime-postman")
         assert task["requires_user_confirmation"] is True
         assert task["target"] == "unconfigured"
+
+
+def test_playwright_project_is_detected_and_planned(tmp_path):
+    (tmp_path / "playwright.config.ts").write_text("export default {};")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "home.spec.ts").write_text("import { test } from '@playwright/test';")
+    with TestClient(app) as client:
+        project = client.post("/api/projects/discover", json={"root_path": str(tmp_path)}).json()
+        assert project["model"]["browser_tests"]
+        plan = client.get(f"/api/projects/{project['id']}/scan-plan?mode=FULL").json()
+        task = next(task for task in plan["tasks"] if task["task_id"] == "browser-functional")
+        assert task["requires_user_confirmation"] is True
+        assert task["target"] == "unconfigured"

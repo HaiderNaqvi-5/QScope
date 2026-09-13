@@ -36,7 +36,7 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
         "dependencies": [],
         "workspace_roots": [], "services": [], "frontend_targets": [],
         "backend_targets": [], "api_specs": [], "postman_collections": [],
-        "postman_environments": [], "runtime_targets": [], "database_indicators": [],
+        "postman_environments": [], "browser_tests": [], "runtime_targets": [], "database_indicators": [],
         "test_suites": [], "build_commands": [], "run_commands": [],
         "docker": {}, "git": {}, "confidence": {}, "files_scanned": 0,
     }
@@ -66,6 +66,10 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
                 model["postman_collections"].append(_evidence("Postman collection", [rel]))
             if filename.endswith(".postman_environment.json"):
                 model["postman_environments"].append(_evidence("Postman environment", [rel]))
+            if filename in {"playwright.config.ts", "playwright.config.js", "playwright.config.mjs", "playwright.config.cjs"}:
+                model["browser_tests"].append(_evidence("Playwright", [rel]))
+            if filename.endswith(".spec.ts") and "tests" in rel.lower():
+                model["browser_tests"].append(_evidence("Playwright test", [rel], "medium"))
             if "test" in filename.lower() or "spec" in filename.lower():
                 model["test_suites"].append(_evidence("detected-test-files", [rel], "medium"))
 
