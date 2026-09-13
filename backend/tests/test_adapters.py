@@ -1,4 +1,6 @@
 """Structured security adapter tests."""
+import json
+
 from app.services.findings import deduplicate_findings, normalize_tool_output
 
 
@@ -64,3 +66,25 @@ def test_schemathesis_failed_case_is_normalized():
     })
     assert findings[0]["title"] == "Schemathesis: GET /users"
     assert "status 500" in findings[0]["message"]
+
+
+def test_trivy_json_is_normalized_without_secret_values():
+    findings = normalize_tool_output("scan-1", {
+        "tool": "trivy",
+        "stage": "CONTAINER_SECURITY",
+        "status": "PASSED",
+        "output": json.dumps({"Results": [{
+            "Target": "Dockerfile",
+            "Vulnerabilities": [{
+                "VulnerabilityID": "CVE-2026-0001",
+                "Severity": "HIGH",
+                "Title": "Example vulnerable package",
+                "InstalledVersion": "1.0",
+                "FixedVersion": "1.1",
+            }],
+        }]}),
+    })
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "HIGH"
+    assert findings[0]["title"] == "Trivy: CVE-2026-0001"
+    assert "CVE-2026-0001" in findings[0]["message"]

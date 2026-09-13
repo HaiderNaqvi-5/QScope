@@ -57,7 +57,7 @@ def score_findings(findings: list[dict[str, Any]]) -> int:
 def normalize_tool_output(scan_id: str, result: dict[str, Any]) -> list[dict[str, Any]]:
     """Normalize structured tool output without persisting secret content."""
     tool = result.get("tool")
-    if tool not in {"semgrep", "gitleaks", "axe", "lighthouse", "newman", "schemathesis"}:
+    if tool not in {"semgrep", "gitleaks", "trivy", "axe", "lighthouse", "newman", "schemathesis"}:
         finding = normalize_result(scan_id, result)
         return [finding] if finding else []
     try:
@@ -70,6 +70,9 @@ def normalize_tool_output(scan_id: str, result: dict[str, Any]) -> list[dict[str
         return findings or ([normalize_result(scan_id, result)] if normalize_result(scan_id, result) else [])
     if tool == "lighthouse":
         findings = _normalize_lighthouse(scan_id, result, payload)
+        return findings or ([normalize_result(scan_id, result)] if normalize_result(scan_id, result) else [])
+    if tool == "trivy":
+        findings = _normalize_trivy(scan_id, result, payload)
         return findings or ([normalize_result(scan_id, result)] if normalize_result(scan_id, result) else [])
     if tool == "newman":
         findings = _normalize_newman(scan_id, result, payload)
@@ -206,6 +209,37 @@ def _normalize_schemathesis(scan_id: str, result: dict[str, Any], payload: Any) 
             f"Schemathesis: {method} {endpoint}", "HIGH",
             f"API case failed with{code_text}{latency_text}. {detail}. Payload values were omitted or redacted.",
         ))
+    return findings
+
+
+def _normalize_trivy(scan_id: str, result: dict[str, Any], payload: Any) -> list[dict[str, Any]]:
+    findings = []
+    for target in payload.get("Results", []) if isinstance(payload, dict) else []:
+        target_path = target.get("Target") or target.get("Type") or "project"
+        vulnerabilities = target.get("Vulnerabilities", []) or []
+        misconfigurations = target.get("Misconfigurations", []) or []
+        for item, category in [(entry, "vulnerability") for entry in vulnerabilities] + [
+            (entry, "misconfiguration") for entry in misconfigurations
+        ]:
+            if not isinstance(item, dict):
+                continue
+            identifier = str(item.get("VulnerabilityID") or item.get("ID") or "trivy-finding")
+            severity = str(item.get("Severity") or "MEDIUM").upper()
+            severity = {"UNKNOWN": "LOW", "NEGLIGIBLE": "LOW"}.get(severity, severity)
+            title = str(item.get("Title") or item.get("Message") or identifier)[:300]
+            installed = item.get("InstalledVersion")
+            fixed = item.get("FixedVersion")
+            version_text = f" Installed version: {installed}." if installed else ""
+            fix_text = f" Fixed version: {fixed}." if fixed else ""
+            findings.append(_finding(
+                scan_id,
+                result,
+                f"{category}|{target_path}|{identifier}",
+                f"Trivy: {identifier}",
+                severity if severity in {"CRITICAL", "HIGH", "MEDIUM", "LOW"} else "MEDIUM",
+                f"{identifier}: {title}.{version_text}{fix_text} Secret values were omitted.",
+                str(target_path),
+            ))
     return findings
 
 
