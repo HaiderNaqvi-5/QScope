@@ -61,6 +61,7 @@ async def init_db() -> None:
             row[1] for row in (await conn.exec_driver_sql("PRAGMA table_info(scan_sessions)")).fetchall()
         }
         additions = {
+            "approved": "VARCHAR(10) DEFAULT 'false'",
             "mode": "VARCHAR(20) DEFAULT 'STANDARD'",
             "plan": "JSON DEFAULT '[]'",
             "results": "JSON DEFAULT '[]'",

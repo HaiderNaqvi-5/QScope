@@ -20,8 +20,10 @@ router = APIRouter()
 
 
 def _response(scan: ScanSession) -> ScanSessionResponse:
+    approval_required = any(task.get("requires_user_confirmation") for task in (scan.plan or []))
     return ScanSessionResponse(
         id=scan.id, project_id=scan.project_id, mode=scan.mode, status=scan.status or "PENDING",
+        approved=scan.approved == "true", approval_required=approval_required,
         results=scan.results or [], error=scan.error, created_at=scan.created_at,
         started_at=scan.started_at, completed_at=scan.completed_at,
     )
@@ -34,12 +36,35 @@ async def start_project_scan(project_id: str, request: ScanStartRequest, db: Asy
         raise HTTPException(status_code=404, detail="Project not found")
     tools, tasks = build_scan_plan(project.id, ProjectModel.model_validate(project.project_model).model_dump(), request.mode)
     del tools
-    session = ScanSession(id=str(uuid4()), project_id=project.id, mode=request.mode, status="PENDING", plan=[task.model_dump() for task in tasks], results=[])
+    plan = [task.model_dump() for task in tasks]
+    approval_required = any(task.get("requires_user_confirmation") for task in plan)
+    session = ScanSession(id=str(uuid4()), project_id=project.id, mode=request.mode,
+        status="AWAITING_APPROVAL" if approval_required else "PENDING",
+        approved="false", plan=plan, results=[])
     db.add(session)
     await db.commit()
     await db.refresh(session)
-    start_scan(session.id, project.root_path, session.plan)
+    if not approval_required:
+        start_scan(session.id, project.root_path, session.plan)
     return _response(session)
+
+
+@router.post("/scans/{scan_id}/approve", response_model=ScanSessionResponse, status_code=202)
+async def approve_scan(scan_id: str, db: AsyncSession = Depends(get_db_session)) -> ScanSessionResponse:
+    scan = await db.get(ScanSession, scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan session not found")
+    if scan.status != "AWAITING_APPROVAL":
+        raise HTTPException(status_code=409, detail="Scan does not require approval")
+    project = await db.get(Project, scan.project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    scan.approved = "true"
+    scan.status = "PENDING"
+    await db.commit()
+    await db.refresh(scan)
+    start_scan(scan.id, project.root_path, scan.plan, approved=True)
+    return _response(scan)
 
 
 @router.get("/scans/{scan_id}", response_model=ScanSessionResponse)

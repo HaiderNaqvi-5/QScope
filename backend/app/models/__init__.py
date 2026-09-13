@@ -22,6 +22,7 @@ class ScanSession(Base):
     project_id = Column(String(36), nullable=False)
     status = Column(String(50), default="pending")
     mode = Column(String(20), default="STANDARD")
+    approved = Column(String(10), default="false")
     plan = Column(JSON, nullable=False, default=list)
     results = Column(JSON, nullable=False, default=list)
     error = Column(Text, nullable=True)

@@ -15,7 +15,7 @@ type Project = {
   };
 };
 type Plan = { project_id: string; mode: string; tools: { display_name: string; available: boolean; version?: string }[]; tasks: { task_id: string; stage: string; tool: string }[] };
-type Scan = { id: string; status: string; results: { task_id: string; status: string; output: string }[] };
+type Scan = { id: string; status: string; approved: boolean; approval_required: boolean; results: { task_id: string; status: string; output: string }[] };
 type Report = { score: number; dependency_count: number; api_spec_count: number; api_testing_status: string; findings: { title: string; severity: string; status: string; file_path?: string; line?: string; message: string }[]; new_findings: number; existing_findings: number };
 
 const API = 'http://127.0.0.1:8000/api';
@@ -72,6 +72,12 @@ export default function ProjectsPage() {
     if (response.ok) setReport(await response.json());
   }
 
+  async function approveScan() {
+    if (!scan) return;
+    const response = await fetch(`${API}/scans/${scan.id}/approve`, { method: 'POST' });
+    if (response.ok) setScan(await response.json());
+  }
+
   function downloadReport(format: 'json' | 'markdown') {
     if (scan) window.open(`${API}/scans/${scan.id}/report/export?format=${format}`, '_blank', 'noopener,noreferrer');
   }
@@ -112,6 +118,7 @@ export default function ProjectsPage() {
         </section>}
         {scan && <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Scan {scan.status.toLowerCase()}</h2><span className="text-sm text-slate-500">{scan.id.slice(0, 8)}</span></div>
+          {scan.status === 'AWAITING_APPROVAL' && <button onClick={approveScan} className="mt-4 rounded-lg bg-amber-600 px-4 py-2 font-semibold text-white hover:bg-amber-700">Approve runtime stages</button>}
           <ol className="mt-4 space-y-2">{scan.results.map((result) => <li key={result.task_id} className="rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><b>{result.task_id}</b> · {result.status}</li>)}</ol>
         </section>}
         {report && <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">

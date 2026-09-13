@@ -48,7 +48,7 @@ async def _emit(session_id: str, event: dict[str, Any]) -> None:
     await queue.put({"session_id": session_id, **event})
 
 
-async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]]) -> None:
+async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]], approved: bool) -> None:
     results: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
     started = time.monotonic()
@@ -59,6 +59,13 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
     await _emit(session_id, {"status": "RUNNING", "message": "Scan started"})
     try:
         for task in plan:
+            if task.get("requires_user_confirmation") and not approved:
+                result = {"task_id": task["task_id"], "status": "SKIPPED_USER", "output": "Stage skipped because it requires explicit user confirmation."}
+                result["stage"] = task["stage"]
+                result["tool"] = task["tool"]
+                results.append(result)
+                await _emit(session_id, {"status": "SKIPPED_USER", "task_id": task["task_id"], "message": "Stage skipped by confirmation policy", "result": result})
+                continue
             await _emit(session_id, {"status": "RUNNING", "task_id": task["task_id"], "message": f"Running {task['stage']}"})
             command = _command_for_task(task, Path(project_root))
             task_started = time.monotonic()
@@ -111,9 +118,9 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
         _events.setdefault(session_id, asyncio.Queue()).put_nowait({"session_id": session_id, "status": "END", "message": "Event stream closed"})
 
 
-def start_scan(session_id: str, project_root: str, plan: list[dict[str, Any]]) -> None:
+def start_scan(session_id: str, project_root: str, plan: list[dict[str, Any]], approved: bool = False) -> None:
     _events[session_id] = asyncio.Queue()
-    _running[session_id] = asyncio.create_task(_execute(session_id, project_root, plan))
+    _running[session_id] = asyncio.create_task(_execute(session_id, project_root, plan, approved))
 
 
 def cancel_scan(session_id: str) -> bool:

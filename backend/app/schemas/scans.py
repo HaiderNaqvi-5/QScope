@@ -21,6 +21,8 @@ class ScanSessionResponse(BaseModel):
     id: str
     project_id: str
     mode: str
+    approved: bool = False
+    approval_required: bool = False
     status: str
     results: list[ScanResult] = Field(default_factory=list)
     error: str | None = None
