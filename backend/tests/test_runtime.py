@@ -52,6 +52,13 @@ def test_optional_security_and_load_commands_are_fixed_vectors(tmp_path, monkeyp
     assert all(";" not in part and "|" not in part for part in (zap + k6 + jmeter))
 
 
+def test_trivy_command_is_fixed_and_scoped_to_project(tmp_path, monkeypatch):
+    monkeypatch.setattr(runtime.shutil, "which", lambda executable: executable == "trivy")
+    assert _command_for_task({"task_id": "trivy-filesystem", "tool": "trivy"}, tmp_path) == [
+        "trivy", "fs", "--format", "json", "--scanners", "vuln,misconfig,secret", str(tmp_path),
+    ]
+
+
 def test_scan_endpoint_creates_session(tmp_path):
     with TestClient(app) as client:
         discovered = client.post("/api/projects/discover", json={"root_path": str(tmp_path)})

@@ -18,6 +18,7 @@ TOOL_DEFINITIONS = (
     ("semgrep", "Semgrep", False, "Install Semgrep Community Edition."),
     ("gitleaks", "Gitleaks", False, "Install Gitleaks."),
     ("osv-scanner", "OSV-Scanner", False, "Install OSV-Scanner for dependency vulnerability analysis."),
+    ("trivy", "Trivy", False, "Install Trivy for filesystem vulnerability and misconfiguration analysis."),
     ("schemathesis", "Schemathesis", False, "Install Schemathesis for OpenAPI API testing."),
     ("newman", "Newman", False, "Install Newman for Postman collection execution."),
     ("playwright", "Playwright", False, "Install project Playwright dependencies and browsers."),
@@ -43,6 +44,8 @@ def inspect_tools(model: dict[str, Any]) -> list[ToolStatus]:
     if languages & {"JavaScript", "TypeScript"}:
         relevant |= {"node", "npm"}
     relevant |= {"git", "semgrep", "gitleaks", "osv-scanner"}
+    if model.get("docker", {}).get("detected"):
+        relevant.add("trivy")
     if model.get("api_specs") or model.get("graphql_specs"):
         relevant.add("schemathesis")
     if model.get("postman_collections"):
@@ -91,6 +94,8 @@ def build_scan_plan(project_id: str, model: dict[str, Any], mode: str) -> tuple[
     ]
     if any(tool.id == "osv-scanner" and tool.available for tool in tools):
         tasks.append(ScanTask(task_id="dependency-audit", stage="DEPENDENCY_VULNERABILITIES", adapter="universal", tool="osv-scanner", target=".", depends_on=["dependency-inventory"]))
+    if any(tool.id == "trivy" and tool.available for tool in tools):
+        tasks.append(ScanTask(task_id="trivy-filesystem", stage="CONTAINER_SECURITY", adapter="universal", tool="trivy", target=".", depends_on=["preflight"], estimated_cost="MEDIUM"))
     if mode == "FULL" and model.get("api_specs"):
         runtime_targets = model.get("runtime_targets", [])
         target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"

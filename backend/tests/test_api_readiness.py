@@ -107,3 +107,13 @@ def test_security_and_load_artifacts_are_planned_with_confirmation(tmp_path):
         load = next(task for task in plan["tasks"] if task["task_id"] == "runtime-k6")
         assert zap["requires_user_confirmation"] is True
         assert load["requires_user_confirmation"] is True
+
+
+def test_docker_project_exposes_optional_trivy_tool_and_task(tmp_path, monkeypatch):
+    (tmp_path / "Dockerfile").write_text("FROM python:3.12-slim")
+    monkeypatch.setattr("app.services.preflight.shutil.which", lambda executable: executable == "trivy")
+    with TestClient(app) as client:
+        project = client.post("/api/projects/discover", json={"root_path": str(tmp_path)}).json()
+        plan = client.get(f"/api/projects/{project['id']}/scan-plan?mode=STANDARD").json()
+        assert next(tool for tool in plan["tools"] if tool["id"] == "trivy")["available"] is True
+        assert next(task for task in plan["tasks"] if task["task_id"] == "trivy-filesystem")["tool"] == "trivy"

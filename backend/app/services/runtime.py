@@ -35,6 +35,8 @@ def _command_for_task(task: dict[str, Any], root: Path) -> list[str] | None:
         return ["gitleaks", "detect", "--source", str(root), "--report-format", "json", "--report-path", "-"]
     if tool == "osv-scanner" and shutil.which("osv-scanner"):
         return ["osv-scanner", "scan", "source", "-r", str(root)]
+    if tool == "trivy" and shutil.which("trivy"):
+        return ["trivy", "fs", "--format", "json", "--scanners", "vuln,misconfig,secret", str(root)]
     if tool == "schemathesis" and shutil.which("schemathesis"):
         specs = sorted(root.glob("openapi.*")) + sorted(root.glob("swagger.*"))
         if specs and task.get("target", "unconfigured") != "unconfigured":
