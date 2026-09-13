@@ -33,3 +33,5 @@ class ScanReportResponse(BaseModel):
     api_spec_count: int = 0
     api_collection_count: int = 0
     api_testing_status: str = "NOT_CONFIGURED"
+    accessibility_status: str = "NOT_CONFIGURED"
+    performance_status: str = "NOT_CONFIGURED"

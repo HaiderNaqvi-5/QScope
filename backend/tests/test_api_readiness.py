@@ -58,3 +58,16 @@ def test_playwright_project_is_detected_and_planned(tmp_path):
         task = next(task for task in plan["tasks"] if task["task_id"] == "browser-functional")
         assert task["requires_user_confirmation"] is True
         assert task["target"] == "unconfigured"
+
+
+def test_accessibility_and_performance_capabilities_are_planned(tmp_path):
+    (tmp_path / "package.json").write_text(json.dumps({
+        "devDependencies": {"@playwright/test": "^1.40.0", "@axe-core/playwright": "^4.0.0", "lighthouse": "^12.0.0"},
+    }))
+    with TestClient(app) as client:
+        project = client.post("/api/projects/discover", json={"root_path": str(tmp_path)}).json()
+        assert project["model"]["accessibility_tests"]
+        assert project["model"]["performance_tests"]
+        plan = client.get(f"/api/projects/{project['id']}/scan-plan?mode=FULL").json()
+        assert next(task for task in plan["tasks"] if task["task_id"] == "browser-accessibility")["requires_user_confirmation"]
+        assert next(task for task in plan["tasks"] if task["task_id"] == "browser-performance")["requires_user_confirmation"]

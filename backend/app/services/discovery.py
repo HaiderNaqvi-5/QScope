@@ -37,7 +37,8 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
         "dependencies": [],
         "workspace_roots": [], "services": [], "frontend_targets": [],
         "backend_targets": [], "api_specs": [], "postman_collections": [],
-        "postman_environments": [], "browser_tests": [], "runtime_targets": [], "database_indicators": [],
+        "postman_environments": [], "browser_tests": [], "accessibility_tests": [],
+        "performance_tests": [], "runtime_targets": [], "database_indicators": [],
         "test_suites": [], "build_commands": [], "run_commands": [],
         "docker": {}, "git": {}, "confidence": {}, "files_scanned": 0,
     }
@@ -96,6 +97,12 @@ def discover_project(root_path: str) -> tuple[Path, dict[str, Any]]:
             {"name": name, "version": str(version), "manifest": "package.json"}
             for name, version in sorted(deps.items())
         )
+        if any(name in deps for name in ("@axe-core/playwright", "axe-playwright", "jest-axe")):
+            model["accessibility_tests"].append(_evidence("axe", ["package.json"]))
+            model["browser_tests"].append(_evidence("Playwright", ["package.json"], "medium"))
+        if "lighthouse" in deps:
+            model["performance_tests"].append(_evidence("Lighthouse", ["package.json"]))
+            model["browser_tests"].append(_evidence("Playwright", ["package.json"], "medium"))
         for lock_name in ("package-lock.json", "npm-shrinkwrap.json"):
             lock_path = root / lock_name
             if not lock_path.exists():

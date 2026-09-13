@@ -21,6 +21,8 @@ TOOL_DEFINITIONS = (
     ("schemathesis", "Schemathesis", False, "Install Schemathesis for OpenAPI API testing."),
     ("newman", "Newman", False, "Install Newman for Postman collection execution."),
     ("playwright", "Playwright", False, "Install project Playwright dependencies and browsers."),
+    ("axe", "axe-core", False, "Install axe-core Playwright integration in the project."),
+    ("lighthouse", "Lighthouse", False, "Install Lighthouse in the project or globally."),
 )
 
 
@@ -44,6 +46,10 @@ def inspect_tools(model: dict[str, Any]) -> list[ToolStatus]:
         relevant.add("newman")
     if model.get("browser_tests"):
         relevant.add("playwright")
+    if model.get("accessibility_tests"):
+        relevant |= {"axe", "playwright"}
+    if model.get("performance_tests"):
+        relevant.add("lighthouse")
     return [
         ToolStatus(
             id=tool_id, display_name=name, executable=tool_id,
@@ -90,4 +96,12 @@ def build_scan_plan(project_id: str, model: dict[str, Any], mode: str) -> tuple[
         runtime_targets = model.get("runtime_targets", [])
         target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
         tasks.append(ScanTask(task_id="browser-functional", stage="BROWSER_FUNCTIONAL", adapter="playwright", tool="playwright", target=target, depends_on=["preflight"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="HIGH"))
+    if mode == "FULL" and model.get("accessibility_tests"):
+        runtime_targets = model.get("runtime_targets", [])
+        target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
+        tasks.append(ScanTask(task_id="browser-accessibility", stage="ACCESSIBILITY", adapter="axe", tool="axe", target=target, depends_on=["browser-functional"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="MEDIUM"))
+    if mode == "FULL" and model.get("performance_tests"):
+        runtime_targets = model.get("runtime_targets", [])
+        target = runtime_targets[0].get("base_url", "unconfigured") if runtime_targets else "unconfigured"
+        tasks.append(ScanTask(task_id="browser-performance", stage="PERFORMANCE", adapter="lighthouse", tool="lighthouse", target=target, depends_on=["browser-functional"], requires_runtime=True, requires_user_confirmation=True, estimated_cost="MEDIUM"))
     return tools, tasks

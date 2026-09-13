@@ -140,6 +140,14 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
     api_testing_status = "READY" if (api_spec_count or postman_count) and runtime_target_configured and api_task_present else (
         "API_SOURCE_FOUND_TARGET_REQUIRED" if (api_spec_count or postman_count) else "NOT_CONFIGURED"
     )
+    accessibility_task = next((task for task in (scan.plan or []) if task.get("task_id") == "browser-accessibility"), None)
+    performance_task = next((task for task in (scan.plan or []) if task.get("task_id") == "browser-performance"), None)
+    accessibility_status = "READY" if accessibility_task and accessibility_task.get("target") != "unconfigured" else (
+        "TARGET_REQUIRED" if accessibility_task else "NOT_CONFIGURED"
+    )
+    performance_status = "READY" if performance_task and performance_task.get("target") != "unconfigured" else (
+        "TARGET_REQUIRED" if performance_task else "NOT_CONFIGURED"
+    )
     baseline = (await db.execute(
         select(Baseline).where(Baseline.project_id == project_id).order_by(Baseline.created_at.desc())
     )).scalars().first()
@@ -165,6 +173,8 @@ async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
         api_spec_count=api_spec_count,
         api_collection_count=postman_count,
         api_testing_status=api_testing_status,
+        accessibility_status=accessibility_status,
+        performance_status=performance_status,
     )
 
 
@@ -214,6 +224,8 @@ th{{background:#eef2f7}}</style></head><body>
         f"- API specs: **{report.api_spec_count}**",
         f"- Postman collections: **{report.api_collection_count}**",
         f"- API testing readiness: **{report.api_testing_status}**", "",
+        f"- Accessibility readiness: **{report.accessibility_status}**",
+        f"- Performance readiness: **{report.performance_status}**", "",
         "## Findings",
     ]
     if report.findings:
