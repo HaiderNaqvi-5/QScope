@@ -1,0 +1,87 @@
+# Environment and configuration
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Node/Frontend
+node_modules/
+.next/
+out/
+.nuxt/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# QSScope runtime data
+.qsscope/
+
+# Reports and test outputs
+reports/
+playwright-report/
+test-results/
+coverage/
+htmlcov/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+
+# Build artifacts
+build/
+out/
+dist/
+.dist/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Docker
+.dockerignore
+
+# Package manager locks (when not committing them)
+# Uncomment if needed:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
