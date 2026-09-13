@@ -10,8 +10,8 @@ A local-first, deterministic platform for analyzing software projects. QSScope d
 - **Multiple Scanning Modes**: Quick, Standard, and Full Audit scans
 - **Unified Findings Dashboard**: Consolidated results from multiple independent analyzers
 - **Regression Baselines**: Track quality improvements between scans
-- **Professional Reports**: Generate DOCX and PDF reports for submission or review
-- **AI-Assisted Review**: Optional Groq API integration for code explanations and fixes
+- **Portable Reports**: Export deterministic JSON and Markdown reports today; DOCX/PDF remain planned
+- **AI-Assisted Review**: Groq integration is planned and remains optional; no source leaves the machine by default
 
 ## Quick Start
 
@@ -91,7 +91,10 @@ pnpm run test
 
 ## Status
 
-This project is in active development. See `Doc & prd/implementation.md` for current milestone status.
+The core local-first workflow is implemented and tested: discovery, preflight, scan planning,
+safe local execution, structured adapters, findings, baselines, scoring, history, and JSON/Markdown
+exports. Browser/runtime expansion, AI review, and DOCX/PDF reporting remain planned. See
+`Doc & prd/implementation.md` for the authoritative milestone status.
 
 ## License
 
