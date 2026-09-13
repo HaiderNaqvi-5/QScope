@@ -16,6 +16,7 @@ type Project = {
 };
 type Plan = { project_id: string; mode: string; tools: { display_name: string; available: boolean; version?: string }[]; tasks: { task_id: string; stage: string; tool: string }[] };
 type Scan = { id: string; status: string; results: { task_id: string; status: string; output: string }[] };
+type Report = { score: number; findings: { title: string; severity: string; file_path?: string; line?: string; message: string }[] };
 
 const API = 'http://127.0.0.1:8000/api';
 
@@ -24,6 +25,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<Plan | null>(null);
   const [scan, setScan] = useState<Scan | null>(null);
+  const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState('');
 
   const loadProjects = () => fetch(`${API}/projects`).then((res) => res.json()).then(setProjects).catch(() => setError('Backend is offline.'));
@@ -57,7 +59,10 @@ export default function ProjectsPage() {
     const timer = window.setInterval(async () => {
       const status = await fetch(`${API}/scans/${initial.id}`).then((res) => res.json()) as Scan;
       setScan(status);
-      if (['COMPLETED', 'FAILED', 'CANCELLED', 'ERROR'].includes(status.status)) window.clearInterval(timer);
+      if (['COMPLETED', 'FAILED', 'CANCELLED', 'ERROR'].includes(status.status)) {
+        window.clearInterval(timer);
+        fetch(`${API}/scans/${initial.id}/report`).then((res) => res.json()).then(setReport);
+      }
     }, 1000);
   }
 
@@ -98,6 +103,10 @@ export default function ProjectsPage() {
         {scan && <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Scan {scan.status.toLowerCase()}</h2><span className="text-sm text-slate-500">{scan.id.slice(0, 8)}</span></div>
           <ol className="mt-4 space-y-2">{scan.results.map((result) => <li key={result.task_id} className="rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><b>{result.task_id}</b> · {result.status}</li>)}</ol>
+        </section>}
+        {report && <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Quality report</h2><span className="text-3xl font-bold text-blue-600">{report.score}/100</span></div>
+          {report.findings.length === 0 ? <p className="mt-4 text-sm text-emerald-600">No normalized findings were produced.</p> : <ul className="mt-4 space-y-2">{report.findings.map((finding, index) => <li key={`${finding.title}-${index}`} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700"><b>{finding.severity}</b> · {finding.title}<p className="mt-1 text-slate-500">{finding.file_path && `${finding.file_path}:${finding.line ?? ''} — `}{finding.message}</p></li>)}</ul>}
         </section>}
       </div>
     </main>

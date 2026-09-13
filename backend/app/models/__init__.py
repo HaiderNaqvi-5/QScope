@@ -37,6 +37,13 @@ class Finding(Base):
     scan_id = Column(String(36), nullable=False)
     title = Column(String(512), nullable=False)
     severity = Column(String(50))
+    tool = Column(String(100), nullable=False, default="qsscope")
+    stage = Column(String(100), nullable=False, default="UNKNOWN")
+    file_path = Column(String(2048), nullable=True)
+    line = Column(String(30), nullable=True)
+    message = Column(Text, nullable=False, default="")
+    fingerprint = Column(String(128), nullable=False, default="")
+    status = Column(String(30), nullable=False, default="OPEN")
     created_at = Column(DateTime, server_default=func.now())
 
 

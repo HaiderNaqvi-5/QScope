@@ -4,14 +4,17 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db_session
-from app.models import Project, ScanSession
+from app.models import Finding, Project, ScanSession
 from app.schemas.projects import ProjectModel
 from app.schemas.scans import ScanSessionResponse, ScanStartRequest
 from app.services.preflight import build_scan_plan
 from app.services.runtime import cancel_scan, event_stream, start_scan
+from app.services.findings import score_findings
+from app.schemas.findings import FindingResponse, ScanReportResponse
 
 router = APIRouter()
 
@@ -67,3 +70,19 @@ async def scan_events(scan_id: str, db: AsyncSession = Depends(get_db_session)) 
     if not await db.get(ScanSession, scan_id):
         raise HTTPException(status_code=404, detail="Scan session not found")
     return StreamingResponse(event_stream(scan_id), media_type="text/event-stream")
+
+
+@router.get("/scans/{scan_id}/report", response_model=ScanReportResponse)
+async def scan_report(scan_id: str, db: AsyncSession = Depends(get_db_session)) -> ScanReportResponse:
+    scan = await db.get(ScanSession, scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan session not found")
+    findings = (await db.execute(select(Finding).where(Finding.scan_id == scan_id))).scalars().all()
+    response_findings = [FindingResponse.model_validate(finding, from_attributes=True) for finding in findings]
+    return ScanReportResponse(
+        scan_id=scan_id, status=scan.status or "PENDING",
+        score=score_findings([finding.model_dump() for finding in response_findings]),
+        findings=response_findings,
+        task_count=len(scan.results or []),
+        failed_tasks=sum(1 for result in (scan.results or []) if result.get("status") in {"FAILED", "TIMED_OUT"}),
+    )

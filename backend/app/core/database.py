@@ -71,6 +71,21 @@ async def init_db() -> None:
         for name, definition in additions.items():
             if name not in columns:
                 await conn.exec_driver_sql(f"ALTER TABLE scan_sessions ADD COLUMN {name} {definition}")
+        finding_columns = {
+            row[1] for row in (await conn.exec_driver_sql("PRAGMA table_info(findings)")).fetchall()
+        }
+        finding_additions = {
+            "tool": "VARCHAR(100) DEFAULT 'qsscope'",
+            "stage": "VARCHAR(100) DEFAULT 'UNKNOWN'",
+            "file_path": "VARCHAR(2048)",
+            "line": "VARCHAR(30)",
+            "message": "TEXT DEFAULT ''",
+            "fingerprint": "VARCHAR(128) DEFAULT ''",
+            "status": "VARCHAR(30) DEFAULT 'OPEN'",
+        }
+        for name, definition in finding_additions.items():
+            if name not in finding_columns:
+                await conn.exec_driver_sql(f"ALTER TABLE findings ADD COLUMN {name} {definition}")
 
 
 async def close_db() -> None:

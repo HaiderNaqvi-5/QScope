@@ -12,6 +12,7 @@ from sqlalchemy import update
 
 from app.core.database import AsyncSessionLocal
 from app.models import ScanSession
+from app.services.findings import normalize_result
 
 _running: dict[str, asyncio.Task[None]] = {}
 _events: dict[str, asyncio.Queue[dict[str, Any]]] = {}
@@ -38,6 +39,7 @@ async def _emit(session_id: str, event: dict[str, Any]) -> None:
 
 async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]]) -> None:
     results: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
     started = time.monotonic()
     async with AsyncSessionLocal() as db:
         now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
@@ -66,7 +68,12 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
                     output = (stdout or b"").decode("utf-8", errors="replace")[-20000:]
                     result = {"task_id": task["task_id"], "status": "PASSED" if process.returncode == 0 else "FAILED", "output": output, "exit_code": process.returncode}
             result["duration_ms"] = int((time.monotonic() - task_started) * 1000)
+            result["stage"] = task["stage"]
+            result["tool"] = task["tool"]
             results.append(result)
+            finding = normalize_result(session_id, result)
+            if finding:
+                findings.append(finding)
             await _emit(session_id, {"status": result["status"], "task_id": task["task_id"], "message": f"{task['stage']} {result['status'].lower()}", "result": result})
             if result["status"] in {"FAILED", "TIMED_OUT"}:
                 break
@@ -75,6 +82,8 @@ async def _execute(session_id: str, project_root: str, plan: list[dict[str, Any]
             await db.execute(update(ScanSession).where(ScanSession.id == session_id).values(
                 status=final_status, results=results, completed_at=now(),
             ))
+            from app.models import Finding
+            db.add_all([Finding(**finding) for finding in findings])
             await db.commit()
         await _emit(session_id, {"status": final_status, "message": f"Scan {final_status.lower()}"})
     except asyncio.CancelledError:

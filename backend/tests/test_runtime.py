@@ -1,5 +1,6 @@
 """Scan runtime service tests."""
 import asyncio
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -30,3 +31,18 @@ def test_scan_endpoint_creates_session(tmp_path):
         started = client.post(f"/api/projects/{project_id}/scans", json={"mode": "QUICK"})
         assert started.status_code == 202
         assert started.json()["status"] in {"PENDING", "RUNNING", "COMPLETED"}
+
+
+def test_scan_report_is_available_after_completion(tmp_path):
+    with TestClient(app) as client:
+        discovered = client.post("/api/projects/discover", json={"root_path": str(tmp_path)})
+        scan = client.post(f"/api/projects/{discovered.json()['id']}/scans", json={"mode": "QUICK"}).json()
+        report = None
+        for _ in range(20):
+            report = client.get(f"/api/scans/{scan['id']}/report")
+            if report.status_code == 200 and report.json()["status"] in {"COMPLETED", "FAILED"}:
+                break
+            time.sleep(0.05)
+        assert report is not None
+        assert report.status_code == 200
+        assert 0 <= report.json()["score"] <= 100
