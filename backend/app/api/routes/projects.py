@@ -3,6 +3,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
+import json
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -79,3 +81,43 @@ async def configure_runtime_target(
     await db.commit()
     await db.refresh(project)
     return _response(project)
+
+
+@router.get("/projects/{project_id}/dependencies/export")
+async def export_dependencies(
+    project_id: str,
+    format: str = Query("cyclonedx", pattern="^cyclonedx$"),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    dependencies = (project.project_model or {}).get("dependencies", [])
+    components = []
+    for dependency in sorted(
+        dependencies,
+        key=lambda item: (str(item.get("name", "")), str(item.get("version", "")), str(item.get("manifest", ""))),
+    ):
+        name = str(dependency.get("name", "unknown"))
+        version = str(dependency.get("version", "*"))
+        manifest = str(dependency.get("manifest", "unknown"))
+        ecosystem = "npm" if manifest in {"package.json", "package-lock.json", "npm-shrinkwrap.json"} else "pypi"
+        components.append({
+            "type": "library",
+            "name": name,
+            "version": version,
+            "scope": "optional",
+            "purl": f"pkg:{ecosystem}/{name}@{version}",
+            "properties": [{"name": "qsscope:manifest", "value": manifest}],
+            "licenses": [{"license": {"name": "UNKNOWN"}}],
+        })
+    body = json.dumps({
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "version": 1,
+        "metadata": {"component": {"type": "application", "name": project.name}},
+        "components": components,
+    }, indent=2, sort_keys=True)
+    return Response(body, media_type="application/json", headers={
+        "Content-Disposition": f'attachment; filename="qsscope-{project_id}-sbom.json"',
+    })

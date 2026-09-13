@@ -1,7 +1,9 @@
 """Dependency inventory tests."""
 import json
 
+from fastapi.testclient import TestClient
 from app.services.discovery import discover_project
+from app.main import app
 
 
 def test_package_dependencies_are_inventoried(tmp_path):
@@ -29,3 +31,15 @@ def test_pyproject_and_npm_lock_dependencies_are_inventoried(tmp_path):
     assert {"name": "fastapi", "version": ">=0.100", "manifest": "pyproject.toml"} in model["dependencies"]
     assert {"name": "httpx", "version": "*", "manifest": "pyproject.toml"} in model["dependencies"]
     assert {"name": "react", "version": "18.3.0", "manifest": "package-lock.json"} in model["dependencies"]
+
+
+def test_dependency_sbom_export_is_deterministic(tmp_path):
+    (tmp_path / "package.json").write_text(json.dumps({"dependencies": {"react": "^18"}}))
+    with TestClient(app) as client:
+        project = client.post("/api/projects/discover", json={"root_path": str(tmp_path)}).json()
+        response = client.get(f"/api/projects/{project['id']}/dependencies/export?format=cyclonedx")
+    assert response.status_code == 200
+    document = response.json()
+    assert document["bomFormat"] == "CycloneDX"
+    assert document["components"][0]["purl"] == "pkg:npm/react@^18"
+    assert document["components"][0]["licenses"][0]["license"]["name"] == "UNKNOWN"
