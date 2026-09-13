@@ -200,11 +200,15 @@ async def export_scan_report(
     if not scan:
         raise HTTPException(status_code=404, detail="Scan session not found")
     report = await scan_report(scan_id, db)
-    db.add(Report(id=str(uuid4()), scan_id=scan_id, format=format))
-    await db.commit()
+
+    async def record_successful_export() -> None:
+        db.add(Report(id=str(uuid4()), scan_id=scan_id, format=format))
+        await db.commit()
+
     if format == "json":
         import json
         body = json.dumps(report.model_dump(), indent=2, default=str)
+        await record_successful_export()
         return Response(body, media_type="application/json", headers={
             "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.json"',
         })
@@ -226,6 +230,7 @@ th{{background:#eef2f7}}</style></head><body>
 <p>New: {report.new_findings} · Existing: {report.existing_findings} · Resolved: {report.resolved_findings}</p>
 <h2>Findings</h2><table><thead><tr><th>Severity</th><th>Status</th><th>Title</th><th>Message</th></tr></thead>
 <tbody>{finding_rows}</tbody></table></body></html>"""
+        await record_successful_export()
         return Response(body, media_type="text/html", headers={
             "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.html"',
         })
@@ -257,6 +262,7 @@ th{{background:#eef2f7}}</style></head><body>
             document.add_paragraph("No normalized findings.")
         buffer = BytesIO()
         document.save(buffer)
+        await record_successful_export()
         return Response(buffer.getvalue(), media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={
             "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.docx"',
         })
@@ -301,6 +307,7 @@ th{{background:#eef2f7}}</style></head><body>
                 status_code=503,
                 detail=f"PDF renderer unavailable; install Playwright Chromium browsers: {exc.__class__.__name__}",
             ) from exc
+        await record_successful_export()
         return Response(pdf, media_type="application/pdf", headers={
             "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.pdf"',
         })
@@ -331,6 +338,7 @@ th{{background:#eef2f7}}</style></head><body>
         )
     else:
         lines.append("- No normalized findings.")
+    await record_successful_export()
     return Response("\n".join(lines) + "\n", media_type="text/markdown", headers={
         "Content-Disposition": f'attachment; filename="qsscope-{scan_id}.md"',
     })
