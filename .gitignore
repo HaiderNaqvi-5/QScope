@@ -37,6 +37,9 @@ yarn-error.log*
 .qsscope/
 artifacts/
 
+# Private planning and implementation material (kept locally only)
+/Doc & prd/
+
 # Reports and test outputs
 reports/
 playwright-report/

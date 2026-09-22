@@ -74,15 +74,11 @@ install tools or transmit source code automatically.
 
 ```
 QSScope/
-├── Doc & prd/              # Product requirements, implementation plan, session docs
 ├── backend/                # FastAPI Python backend
 ├── frontend/               # Next.js React frontend
-├── report_templates/       # DOCX, PDF, HTML report templates
 ├── scripts/                # Development and deployment scripts
 └── .qsscope/              # Runtime data (Git-ignored)
 ```
-
-For detailed architecture, see `Doc & prd/PRD.md`.
 
 ## Development
 
@@ -105,13 +101,6 @@ pnpm run dev
 pnpm run test
 ```
 
-## Documentation
-
-- **PRD**: `Doc & prd/PRD.md` - Complete product specification
-- **Implementation Plan**: `Doc & prd/IMPLEMENTATION_PLAN.md` - Build milestones and tasks
-- **Project Rules**: `Doc & prd/PROJECT_RULES.md` - Coding standards and decisions
-- **Session Notes**: `Doc & prd/sessions/` - Development notes by milestone
-
 ## Status
 
 The core local-first workflow is implemented and tested: discovery, preflight, scan planning,
@@ -123,8 +112,7 @@ normalization, history, and JSON/Markdown/HTML
 exports, including DOCX, plus approval-gated ZAP/k6/JMeter readiness for detected local
 artifacts, local advisory code-hygiene heuristics, optional PDF export when the local
 Playwright Chromium renderer is installed, and privacy-safe Groq readiness status. AI actions
-remain opt-in and bounded; browser execution expansion and AI review workflows remain planned. See
-`Doc & prd/implementation.md` for the authoritative milestone status.
+remain opt-in and bounded; browser execution expansion and AI review workflows remain planned.
 
 The product is intentionally local-first: source code stays on the machine by
 default. Optional AI review is opt-in and constrained to the configured flow.
@@ -132,7 +120,3 @@ default. Optional AI review is opt-in and constrained to the configured flow.
 ## License
 
 See LICENSE file for details.
-
-## Contributing
-
-This is a locked-specification project. Before contributing, read `Doc & prd/PROJECT_RULES.md` and the PRD.
