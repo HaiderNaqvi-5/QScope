@@ -5,6 +5,10 @@
 
 A local-first, deterministic platform for analyzing software projects. QSScope detects your project's language, frameworks, and test infrastructure, then orchestrates multiple quality and security engines to produce actionable findings and a professional quality report.
 
+## Product preview
+
+![QSScope application home screen](docs/screenshots/home.png)
+
 ## Key Features
 
 - **Full-Stack Analysis**: Analyzes frontend, backend, APIs, dependencies, infrastructure, and test suites
