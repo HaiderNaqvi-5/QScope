@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
 export default function Home() {
   const [backendStatus, setBackendStatus] = useState<string>('checking...');
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/health')
+    fetch(`${API_ORIGIN}/api/health`)
       .then(res => {
         if (res.ok) setBackendStatus('online');
         else setBackendStatus('error');
@@ -42,7 +44,7 @@ export default function Home() {
                 <span className="capitalize font-medium">{backendStatus}</span>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                http://127.0.0.1:8000
+                {API_ORIGIN}
               </p>
             </CardContent>
           </Card>
@@ -67,7 +69,7 @@ export default function Home() {
             <CardContent>
               <div className="space-y-2">
                 <a
-                  href="http://127.0.0.1:8000/docs"
+                  href={`${API_ORIGIN}/docs`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block text-blue-600 dark:text-blue-400 hover:underline"

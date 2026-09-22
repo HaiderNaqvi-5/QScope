@@ -60,6 +60,17 @@ def test_playwright_project_is_detected_and_planned(tmp_path):
         assert task["target"] == "unconfigured"
 
 
+def test_frontend_without_project_browser_tests_gets_qsscope_generated_browser_stage(tmp_path):
+    (tmp_path / "package.json").write_text(json.dumps({"dependencies": {"react": "18.2.0"}}))
+    with TestClient(app) as client:
+        project = client.post("/api/projects/discover", json={"root_path": str(tmp_path)}).json()
+        assert project["model"]["frontend_targets"][0]["value"] == "React"
+        plan = client.get(f"/api/projects/{project['id']}/scan-plan?mode=STANDARD").json()
+        browser = next(task for task in plan["tasks"] if task["task_id"] == "browser-functional")
+        assert browser["adapter"] == "playwright"
+        assert browser["requires_user_confirmation"] is True
+
+
 def test_accessibility_and_performance_capabilities_are_planned(tmp_path):
     (tmp_path / "package.json").write_text(json.dumps({
         "devDependencies": {"@playwright/test": "^1.40.0", "@axe-core/playwright": "^4.0.0", "lighthouse": "^12.0.0"},

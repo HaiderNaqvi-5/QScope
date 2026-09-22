@@ -21,7 +21,10 @@ engine = create_async_engine(
     echo=settings.DATABASE_ECHO,
     future=True,
     pool_pre_ping=True,
-    poolclass=NullPool,  # No connection pooling for SQLite
+    # Async SQLite connections are bound to their creating event loop. Codex
+    # desktop tests and embedded hosts may create more than one loop in a
+    # process, so connections must not be reused across loop boundaries.
+    poolclass=NullPool,
 )
 
 # Create async session factory
@@ -68,6 +71,13 @@ async def init_db() -> None:
             "error": "TEXT",
             "started_at": "DATETIME",
             "completed_at": "DATETIME",
+            "git_commit": "VARCHAR(64)",
+            "git_branch": "VARCHAR(512)",
+            "project_fingerprint": "VARCHAR(64)",
+            "overall_score": "INTEGER",
+            "is_complete_audit": "BOOLEAN",
+            "release_readiness": "VARCHAR(50)",
+            "release_blockers": "JSON DEFAULT '[]'",
         }
         for name, definition in additions.items():
             if name not in columns:
@@ -83,6 +93,22 @@ async def init_db() -> None:
             "message": "TEXT DEFAULT ''",
             "fingerprint": "VARCHAR(128) DEFAULT ''",
             "status": "VARCHAR(30) DEFAULT 'OPEN'",
+            "category": "VARCHAR(100) DEFAULT 'CODE_QUALITY'",
+            "subcategory": "VARCHAR(100)",
+            "description": "TEXT DEFAULT ''",
+            "confidence": "VARCHAR(20) DEFAULT '0.75'",
+            "rule_id": "VARCHAR(512)",
+            "start_line": "INTEGER",
+            "end_line": "INTEGER",
+            "endpoint": "VARCHAR(2048)",
+            "evidence": "JSON DEFAULT '{}'",
+            "raw_artifact_id": "VARCHAR(36)",
+            "why_it_matters": "TEXT DEFAULT ''",
+            "recommendation": "TEXT DEFAULT ''",
+            "suggested_patch": "TEXT",
+            "suggested_test": "TEXT",
+            "sources": "JSON DEFAULT '[]'",
+            "correlation_key": "VARCHAR(128)",
         }
         for name, definition in finding_additions.items():
             if name not in finding_columns:

@@ -28,17 +28,21 @@ yarn-error.log*
 
 # Database
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 
 # QSScope runtime data
 .qsscope/
+artifacts/
 
 # Reports and test outputs
 reports/
 playwright-report/
 test-results/
 coverage/
+.coverage
 htmlcov/
 
 # Logs
@@ -76,6 +80,7 @@ tmp/
 temp/
 *.tmp
 *.bak
+*.tsbuildinfo
 
 # Docker
 .dockerignore

@@ -49,7 +49,7 @@ async def get_ai_status() -> AIStatusResponse:
         status=status,
         model=app_settings.GROQ_MODEL,
         max_tokens=app_settings.GROQ_MAX_TOKENS,
-        timeout_seconds=app_settings.GROQ_TIMEOUT,
+        timeout_seconds=app_settings.GROQ_TIMEOUT_SECONDS,
         source_upload_default=False,
         note="AI actions are opt-in; only bounded redacted context may be sent to Groq.",
     )

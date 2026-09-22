@@ -59,6 +59,8 @@ class ProjectModel(BaseModel):
     docker: dict[str, Any] = Field(default_factory=dict)
     git: dict[str, Any] = Field(default_factory=dict)
     confidence: dict[str, float] = Field(default_factory=dict)
+    manifest_evidence: dict[str, list[str]] = Field(default_factory=dict)
+    unsupported_languages: list[Evidence] = Field(default_factory=list)
     files_scanned: int = 0
 
 
@@ -74,9 +76,15 @@ class ToolStatus(BaseModel):
     display_name: str
     executable: str
     available: bool
+    status: Literal["READY", "MISSING", "INCOMPATIBLE_VERSION", "ERROR", "OPTIONAL_NOT_INSTALLED", "NOT_APPLICABLE"] = "MISSING"
     version: str | None = None
     required: bool = False
     guidance: str | None = None
+    reason: str | None = None
+    categories: list[str] = Field(default_factory=list)
+    adapter: str = "universal"
+    license: str | None = None
+    output_formats: list[str] = Field(default_factory=list)
 
 
 class ScanTask(BaseModel):

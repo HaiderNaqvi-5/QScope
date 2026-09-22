@@ -4,12 +4,17 @@ Loads configuration from environment variables and .env file.
 """
 from typing import Literal
 from pathlib import Path
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment."""
+    model_config = SettingsConfigDict(
+        env_file=PROJECT_ROOT / ".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
+    )
 
     # Server
     DEBUG: bool = Field(default=False, description="Debug mode")
@@ -35,14 +40,15 @@ class Settings(BaseSettings):
 
     # LLM / Groq
     GROQ_API_KEY: str = Field(default="", description="Groq API key")
-    GROQ_MODEL: str = Field(
-        default="mixtral-8x7b-32768", description="Groq model to use"
-    )
+    GROQ_BASE_URL: str = Field(default="https://api.groq.com/openai/v1", description="Groq OpenAI-compatible API")
+    GROQ_MODEL: str = Field(default="openai/gpt-oss-20b", description="Groq model to use")
     GROQ_MAX_TOKENS: int = Field(default=2048, description="Max tokens for LLM")
-    GROQ_TIMEOUT: int = Field(default=30, description="Groq API timeout in seconds")
+    GROQ_TIMEOUT_SECONDS: int = Field(default=60, description="Groq API timeout in seconds")
+    GROQ_MAX_RETRIES: int = Field(default=3, ge=0, le=5)
+    GROQ_MAX_CONCURRENT_REQUESTS: int = Field(default=2, ge=1, le=8)
 
     # Features
-    ENABLE_LLM_FEATURES: bool = Field(default=True, description="Enable LLM features")
+    QSSCOPE_LLM_ENABLED: bool = Field(default=True, description="Enable LLM features")
     ENABLE_ADVANCED_TESTING: bool = Field(default=True, description="Enable advanced testing")
 
     # Performance
@@ -50,15 +56,23 @@ class Settings(BaseSettings):
     TOOL_TIMEOUT: int = Field(default=300, description="Tool execution timeout")
     MAX_FILE_SIZE_MB: int = Field(default=100, description="Max file size to analyze")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-
     @property
     def data_dir(self) -> Path:
         """Get the data directory path."""
         return Path(self.QSSCOPE_DATA_DIR).resolve()
+
+    @property
+    def ENABLE_LLM_FEATURES(self) -> bool:
+        """Compatibility alias for the original settings/API name."""
+        return self.QSSCOPE_LLM_ENABLED
+
+    @ENABLE_LLM_FEATURES.setter
+    def ENABLE_LLM_FEATURES(self, value: bool) -> None:
+        self.QSSCOPE_LLM_ENABLED = value
+
+    @property
+    def GROQ_TIMEOUT(self) -> int:
+        return self.GROQ_TIMEOUT_SECONDS
 
 
 # Global settings instance

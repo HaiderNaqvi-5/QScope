@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/settings')
+    fetch(`${API_ORIGIN}/api/settings`)
       .then(res => res.json())
       .then(data => {
         setSettings(data);

@@ -1,5 +1,8 @@
 # QSScope — Local Full-Stack Quality, Security & Testing Intelligence Platform
 
+> Understand a project’s quality, test coverage, runtime readiness, and
+> security signals with deterministic, local-first analysis.
+
 A local-first, deterministic platform for analyzing software projects. QSScope detects your project's language, frameworks, and test infrastructure, then orchestrates multiple quality and security engines to produce actionable findings and a professional quality report.
 
 ## Key Features
@@ -12,6 +15,16 @@ A local-first, deterministic platform for analyzing software projects. QSScope d
 - **Regression Baselines**: Track quality improvements between scans
 - **Portable Reports**: Export deterministic JSON, Markdown, HTML, and CycloneDX SBOM reports; DOCX/PDF remain planned
 - **AI-Assisted Review**: Groq integration is planned and remains optional; no source leaves the machine by default
+
+## How it works
+
+1. Add a local project and let QSScope discover its languages, frameworks,
+   package manifests, and test tooling.
+2. Run a Quick, Standard, or Full Audit with only the locally available tools
+   that are relevant to that project.
+3. Review normalized findings, evidence, quality scores, baselines, and release
+   readiness in the dashboard.
+4. Export portable reports for sharing or retaining a deterministic audit trail.
 
 ## Quick Start
 
@@ -102,6 +115,9 @@ artifacts, local advisory code-hygiene heuristics, optional PDF export when the 
 Playwright Chromium renderer is installed, and privacy-safe Groq readiness status. AI actions
 remain opt-in and bounded; browser execution expansion and AI review workflows remain planned. See
 `Doc & prd/implementation.md` for the authoritative milestone status.
+
+The product is intentionally local-first: source code stays on the machine by
+default. Optional AI review is opt-in and constrained to the configured flow.
 
 ## License
 

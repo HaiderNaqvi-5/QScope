@@ -88,3 +88,27 @@ def test_trivy_json_is_normalized_without_secret_values():
     assert findings[0]["severity"] == "HIGH"
     assert findings[0]["title"] == "Trivy: CVE-2026-0001"
     assert "CVE-2026-0001" in findings[0]["message"]
+
+
+def test_osv_json_is_normalized_with_package_evidence():
+    findings = normalize_tool_output("scan", {"tool": "osv-scanner", "stage": "DEPENDENCY_VULNERABILITIES",
+        "status": "FAILED", "output": json.dumps({"results": [{"source": {"path": "package-lock.json"},
+        "packages": [{"package": {"name": "demo", "version": "1.0"},
+        "vulnerabilities": [{"id": "GHSA-test", "summary": "Test advisory"}]}]}]})})
+    assert findings[0]["title"] == "GHSA-test affects demo"
+    assert findings[0]["category"] == "DEPENDENCIES"
+    assert findings[0]["file_path"] == "package-lock.json"
+
+
+def test_lizard_complexity_csv_is_normalized():
+    output = "NLOC,CCN,token,PARAM,length,location,file,function_name,long_name,start line,end line\n120,22,1,0,120,x,app.py,handler,handler(),10,130\n"
+    findings = normalize_tool_output("scan", {"tool": "lizard", "stage": "CODE_QUALITY", "status": "PASSED", "output": output})
+    assert findings[0]["title"] == "Complex function: handler"
+    assert findings[0]["line"] == "10"
+
+
+def test_jscpd_console_output_is_normalized():
+    findings = normalize_tool_output("scan", {"tool": "jscpd", "stage": "CODE_QUALITY", "status": "FAILED",
+        "output": "src/a.ts:10 duplicate block matches src/b.ts:20"})
+    assert findings[0]["title"] == "Duplicated code block"
+    assert findings[0]["file_path"] == "src/a.ts"

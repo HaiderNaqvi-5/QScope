@@ -26,6 +26,14 @@ from app.services.preflight import build_scan_plan
 router = APIRouter()
 
 
+def _is_active_workspace(root_path: str) -> bool:
+    """Return whether a persisted root is suitable for the active-project picker."""
+    root = Path(root_path)
+    # Pytest retains recent temporary directories, so checking only existence
+    # leaves development fixtures mixed into the normal project workspace.
+    return root.is_dir() and "/tmp/pytest-of-" not in root.as_posix()
+
+
 def _response(project: Project) -> ProjectResponse:
     return ProjectResponse(
         id=project.id, name=project.name, root_path=project.root_path,
@@ -52,8 +60,16 @@ async def discover(request: ProjectDiscoverRequest, db: AsyncSession = Depends(g
 
 
 @router.get("/projects", response_model=list[ProjectResponse])
-async def list_projects(db: AsyncSession = Depends(get_db_session)) -> list[ProjectResponse]:
+async def list_projects(
+    include_unavailable: bool = Query(False),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[ProjectResponse]:
     projects = (await db.execute(select(Project).order_by(Project.updated_at.desc()))).scalars().all()
+    # A project record is durable evidence, but a missing local root is not an
+    # actionable workspace. Hide unavailable records from the everyday UI
+    # without deleting audit history; callers can explicitly request them.
+    if not include_unavailable:
+        projects = [project for project in projects if _is_active_workspace(project.root_path)]
     return [_response(project) for project in projects]
 
 

@@ -1,5 +1,6 @@
 """Acceptance coverage for deterministic project discovery."""
 import json
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -32,3 +33,15 @@ def test_scan_plan_contains_preflight(tmp_path):
         plan = client.get(f"/api/projects/{project_id}/scan-plan")
     assert plan.status_code == 200
     assert any(task["stage"] == "PREFLIGHT" for task in plan.json()["tasks"])
+
+
+def test_project_listing_hides_unavailable_local_roots_by_default(tmp_path):
+    with TestClient(app) as client:
+        discovered = client.post("/api/projects/discover", json={"root_path": str(tmp_path)})
+        assert discovered.status_code == 200
+        visible = client.get("/api/projects")
+        assert visible.status_code == 200
+        assert all(Path(item["root_path"]).is_dir() for item in visible.json())
+        assert all("/tmp/pytest-of-" not in item["root_path"] for item in visible.json())
+        all_records = client.get("/api/projects?include_unavailable=true")
+        assert any(item["id"] == discovered.json()["id"] for item in all_records.json())

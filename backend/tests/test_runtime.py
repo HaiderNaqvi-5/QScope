@@ -1,5 +1,6 @@
 """Scan runtime service tests."""
 import asyncio
+import subprocess
 import time
 
 import pytest
@@ -7,12 +8,12 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services import runtime
-from app.services.runtime import _command_for_task
+from app.services.runtime import _command_for_task, _project_tool_missing, _task_workdir
 
 
 def test_runtime_whitelists_known_commands(tmp_path):
     assert _command_for_task({"task_id": "python-compile", "tool": "python"}, tmp_path) == [
-        "python", "-m", "compileall", "-q", "."
+        "python", "-c", runtime._SYNTAX_CHECK
     ]
     assert _command_for_task({"task_id": "arbitrary", "tool": "sh"}, tmp_path) is None
     api_command = _command_for_task(
@@ -23,11 +24,54 @@ def test_runtime_whitelists_known_commands(tmp_path):
         assert api_command[-2:] == ["--base-url", "http://127.0.0.1:8000"]
 
 
+def test_project_local_npx_package_absence_is_disclosed_as_tool_missing():
+    assert _project_tool_missing('npm error npx canceled due to missing packages and no YES option: ["eslint"]')
+    assert not _project_tool_missing("src/app.ts:2: unexpected lint failure")
+
+
+def test_python_syntax_check_does_not_create_bytecode(tmp_path):
+    (tmp_path / "valid.py").write_text("value = 1\n")
+    command = _command_for_task({"task_id": "python-compile", "tool": "python"}, tmp_path)
+    completed = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True, check=False)
+    assert completed.returncode == 0
+    assert not (tmp_path / "__pycache__").exists()
+
+
+def test_task_workdir_is_contained_and_workspace_aware(tmp_path):
+    workspace = tmp_path / "apps" / "api"
+    workspace.mkdir(parents=True)
+    assert _task_workdir(tmp_path, {"target": "apps/api"}) == workspace
+    with pytest.raises(ValueError, match="escapes project root"):
+        _task_workdir(tmp_path, {"target": "../outside"})
+
+
 @pytest.mark.asyncio
 async def test_runtime_command_is_not_shell_parsed(tmp_path):
     command = _command_for_task({"task_id": "python-tests", "tool": "pytest"}, tmp_path)
     assert command == ["pytest", "-q"]
     assert all(";" not in part and "|" not in part for part in command)
+
+
+@pytest.mark.asyncio
+async def test_process_output_is_bounded(monkeypatch):
+    monkeypatch.setattr(runtime, "MAX_TOOL_OUTPUT_BYTES", 128)
+    process = await asyncio.create_subprocess_exec(
+        "python", "-c", "print('x' * 10000)", stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT, start_new_session=True,
+    )
+    output = await runtime._read_process_output(process)
+    assert len(output) == 128
+    assert output.endswith(b"\n")
+
+
+@pytest.mark.asyncio
+async def test_process_tree_is_terminated_on_cancellation():
+    process = await asyncio.create_subprocess_exec(
+        "python", "-c", "import time; time.sleep(30)", stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT, start_new_session=True,
+    )
+    await runtime._stop_process_tree(process)
+    assert process.returncode is not None
 
 
 def test_optional_security_and_load_commands_are_fixed_vectors(tmp_path, monkeypatch):
