@@ -5,16 +5,26 @@
 
 A local-first, deterministic platform for analyzing software projects. QSScope detects your project's language, frameworks, and test infrastructure, then orchestrates multiple quality and security engines to produce actionable findings and a professional quality report.
 
-## Key Features
+## What it does
 
-- **Full-Stack Analysis**: Analyzes frontend, backend, APIs, dependencies, infrastructure, and test suites
-- **Local-First**: All source code stays on your machine by default
-- **Language-Agnostic**: Support for JavaScript/TypeScript, Python, Java, PHP, Go, C#/.NET, Rust, and more
-- **Multiple Scanning Modes**: Quick, Standard, and Full Audit scans
-- **Unified Findings Dashboard**: Consolidated results from multiple independent analyzers
-- **Regression Baselines**: Track quality improvements between scans
-- **Portable Reports**: Export deterministic JSON, Markdown, HTML, and CycloneDX SBOM reports; DOCX/PDF remain planned
-- **AI-Assisted Review**: Groq integration is planned and remains optional; no source leaves the machine by default
+- Discover languages, frameworks, package manifests, and test tooling
+- Run Quick, Standard, or Full Audit scan plans using relevant local tools
+- Consolidate code-quality, dependency, runtime, test, and security findings
+- Track baselines and regression signals between scans
+- Export deterministic JSON, Markdown, HTML, and CycloneDX SBOM reports
+- Keep source code local by default, with optional and clearly disclosed AI
+  assistance
+
+## Integrated tooling
+
+QSScope detects and prepares locally available tooling for the project being
+reviewed. Its workflow covers API specifications and collections, browser-test
+readiness, dependency inventory, accessibility and performance evidence, and
+local security/load-test tooling.
+
+Some integrations require a local installation or explicit approval before they
+run. They are shown as available capabilities when detected; QSScope does not
+install tools or transmit source code automatically.
 
 ## How it works
 
